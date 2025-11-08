@@ -10,7 +10,13 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { EmailModule } from '../email/email.module';
-import { Company, CompanyOwner, Dispatcher, Driver } from '../common/entities';
+import {
+  Company,
+  CompanyOwner,
+  Dispatcher,
+  Driver,
+  PasswordResetToken,
+} from '../common/entities';
 import type { StringValue } from 'ms';
 
 @Module({
@@ -26,7 +32,13 @@ import type { StringValue } from 'ms';
         },
       }),
     }),
-    TypeOrmModule.forFeature([CompanyOwner, Company, Dispatcher, Driver]),
+    TypeOrmModule.forFeature([
+      CompanyOwner,
+      Company,
+      Dispatcher,
+      Driver,
+      PasswordResetToken,
+    ]),
     EmailModule,
   ],
   controllers: [AuthController],

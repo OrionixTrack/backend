@@ -7,3 +7,4 @@ export { Tracker } from './tracker.entity';
 export { TrackingChannel } from './tracking-channel.entity';
 export { Trip, TripStatus } from './trip.entity';
 export { SensorData } from './sensor-data.entity';
+export { PasswordResetToken } from './password-reset-token.entity';

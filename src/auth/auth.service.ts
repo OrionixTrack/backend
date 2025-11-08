@@ -21,11 +21,27 @@ import { OwnerUserDto } from '../owner/dto/owner-user.dto';
 import { OwnerAuthResponseDto } from '../owner/dto/owner-auth-response.dto';
 import { DispatcherAuthResponseDto } from '../dispatcher/dto/dispatcher-auth-response.dto';
 import { DriverAuthResponseDto } from '../driver/dto/driver-auth-response.dto';
-import { Company, CompanyOwner, Dispatcher, Driver } from '../common/entities';
+import {
+  Company,
+  CompanyOwner,
+  Dispatcher,
+  Driver,
+  PasswordResetToken,
+} from '../common/entities';
 import ms, { StringValue } from 'ms';
 import { OwnerMapper } from '../owner/owner.mapper';
 import { DispatcherMapper } from '../dispatcher/dispatcher.mapper';
 import { DriverMapper } from '../driver/driver.mapper';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { DispatcherUserDto } from '../dispatcher/dto/dispatcher-user.dto';
+import { DriverUserDto } from '../driver/dto/driver-user.dto';
+
+type UserEntity = CompanyOwner | Dispatcher | Driver;
+type AuthResponse =
+  | OwnerAuthResponseDto
+  | DispatcherAuthResponseDto
+  | DriverAuthResponseDto;
 
 @Injectable()
 export class AuthService {
@@ -41,6 +57,8 @@ export class AuthService {
     private dispatcherRepository: Repository<Dispatcher>,
     @InjectRepository(Driver)
     private driverRepository: Repository<Driver>,
+    @InjectRepository(PasswordResetToken)
+    private passwordResetTokenRepository: Repository<PasswordResetToken>,
     private jwtService: JwtService,
     private emailService: EmailService,
     private configService: ConfigService,
@@ -120,7 +138,10 @@ export class AuthService {
       owner.language,
     );
 
-    return this.generateOwnerToken(owner);
+    return this.generateAuthToken(
+      owner,
+      UserRole.COMPANY_OWNER,
+    ) as OwnerAuthResponseDto;
   }
 
   async resendVerificationEmail(email: string) {
@@ -176,7 +197,10 @@ export class AuthService {
 
     await this.validatePassword(password, owner.password);
 
-    return this.generateOwnerToken(owner);
+    return this.generateAuthToken(
+      owner,
+      UserRole.COMPANY_OWNER,
+    ) as OwnerAuthResponseDto;
   }
 
   async loginDispatcher(
@@ -195,7 +219,10 @@ export class AuthService {
 
     await this.validatePassword(password, dispatcher.password);
 
-    return this.generateDispatcherToken(dispatcher);
+    return this.generateAuthToken(
+      dispatcher,
+      UserRole.DISPATCHER,
+    ) as DispatcherAuthResponseDto;
   }
 
   async loginDriver(loginDto: LoginDto): Promise<DriverAuthResponseDto> {
@@ -212,7 +239,118 @@ export class AuthService {
 
     await this.validatePassword(password, driver.password);
 
-    return this.generateDriverToken(driver);
+    return this.generateAuthToken(
+      driver,
+      UserRole.DRIVER,
+    ) as DriverAuthResponseDto;
+  }
+
+  async forgotPassword(
+    role: UserRole,
+    forgotPasswordDto: ForgotPasswordDto,
+  ): Promise<{ message: string }> {
+    const { email } = forgotPasswordDto;
+
+    const user = await this.findUserByRoleAndEmail(role, email);
+
+    if (!user) {
+      return {
+        message:
+          'If an account with that email exists, a password reset link has been sent.',
+      };
+    }
+
+    const { token, expiresAt, userIdField } =
+      this.generatePasswordResetToken(user);
+
+    await this.passwordResetTokenRepository.save({
+      token,
+      ...userIdField,
+      expires_at: expiresAt,
+    });
+
+    await this.emailService.sendPasswordResetEmail(email, token, user.language);
+
+    return {
+      message:
+        'If an account with that email exists, a password reset link has been sent.',
+    };
+  }
+
+  async resetPassword(
+    resetPasswordDto: ResetPasswordDto,
+  ): Promise<{ message: string }> {
+    const { token, new_password } = resetPasswordDto;
+
+    const resetToken = await this.passwordResetTokenRepository.findOne({
+      where: { token },
+    });
+
+    if (!resetToken) {
+      throw new BadRequestException('Invalid or expired reset token');
+    }
+
+    if (resetToken.expires_at < new Date()) {
+      await this.passwordResetTokenRepository.delete({
+        token_id: resetToken.token_id,
+      });
+      throw new BadRequestException('Reset token has expired');
+    }
+
+    let userId: number;
+    let repository: Repository<UserEntity>;
+    let role: UserRole;
+
+    if (resetToken.company_owner_id) {
+      userId = resetToken.company_owner_id;
+      repository = this.companyOwnerRepository as Repository<UserEntity>;
+      role = UserRole.COMPANY_OWNER;
+    } else if (resetToken.dispatcher_id) {
+      userId = resetToken.dispatcher_id;
+      repository = this.dispatcherRepository as Repository<UserEntity>;
+      role = UserRole.DISPATCHER;
+    } else if (resetToken.driver_id) {
+      userId = resetToken.driver_id;
+      repository = this.driverRepository as Repository<UserEntity>;
+      role = UserRole.DRIVER;
+    } else {
+      throw new BadRequestException('Invalid reset token structure');
+    }
+
+    const userSearchCriteria: { [key: string]: number } = {};
+    const idField = this.getUserIdFieldByRole(role);
+    userSearchCriteria[idField] = userId;
+
+    const user = await repository.findOne({ where: userSearchCriteria });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    (user as { password: string }).password =
+      await this.hashPassword(new_password);
+    await repository.save(user);
+
+    await this.passwordResetTokenRepository.delete({
+      token_id: resetToken.token_id,
+    });
+
+    return { message: 'Password has been reset successfully' };
+  }
+
+  private getUserIdFieldByRole(
+    role: UserRole,
+  ): keyof CompanyOwner | keyof Dispatcher | keyof Driver {
+    switch (role) {
+      case UserRole.COMPANY_OWNER:
+        return 'company_owner_id';
+      case UserRole.DISPATCHER:
+        return 'dispatcher_id';
+      case UserRole.DRIVER:
+        return 'driver_id';
+      default:
+        throw new BadRequestException('Invalid user role');
+    }
   }
 
   private async hashPassword(password: string): Promise<string> {
@@ -263,47 +401,95 @@ export class AuthService {
     }
   }
 
-  private generateOwnerToken(owner: CompanyOwner): OwnerAuthResponseDto {
-    const payload: JwtPayload = {
-      sub: owner.company_owner_id,
-      email: owner.email,
-      role: UserRole.COMPANY_OWNER,
-      companyId: owner.company_id,
-    };
-
-    return {
-      access_token: this.jwtService.sign(payload),
-      owner: OwnerMapper.toUserDto(owner, owner.company),
-    };
+  private getUserRepository(
+    role: UserRole,
+  ): Repository<CompanyOwner> | Repository<Dispatcher> | Repository<Driver> {
+    switch (role) {
+      case UserRole.COMPANY_OWNER:
+        return this.companyOwnerRepository;
+      case UserRole.DISPATCHER:
+        return this.dispatcherRepository;
+      case UserRole.DRIVER:
+        return this.driverRepository;
+      default:
+        throw new BadRequestException('Invalid user role');
+    }
   }
 
-  private generateDispatcherToken(
-    dispatcher: Dispatcher,
-  ): DispatcherAuthResponseDto {
-    const payload: JwtPayload = {
-      sub: dispatcher.dispatcher_id,
-      email: dispatcher.email,
-      role: UserRole.DISPATCHER,
-      companyId: dispatcher.company_id,
-    };
-
-    return {
-      access_token: this.jwtService.sign(payload),
-      dispatcher: DispatcherMapper.toUserDto(dispatcher),
-    };
+  private async findUserByRoleAndEmail(
+    role: UserRole,
+    email: string,
+  ): Promise<UserEntity | null> {
+    const repository = this.getUserRepository(role);
+    return await repository.findOneBy({ email });
   }
 
-  private generateDriverToken(driver: Driver): DriverAuthResponseDto {
+  private generatePasswordResetToken(user: UserEntity): {
+    token: string;
+    expiresAt: Date;
+    userIdField: Partial<PasswordResetToken>;
+  } {
+    const token = randomBytes(32).toString('hex');
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 1);
+
+    let userIdField: Partial<PasswordResetToken>;
+
+    if ('company_owner_id' in user) {
+      userIdField = { company_owner_id: user.company_owner_id };
+    } else if ('dispatcher_id' in user) {
+      userIdField = { dispatcher_id: user.dispatcher_id };
+    } else if ('driver_id' in user) {
+      userIdField = { driver_id: user.driver_id };
+    } else {
+      throw new Error('User entity does not have a recognized ID field');
+    }
+
+    return { token, expiresAt, userIdField };
+  }
+
+  private generateAuthToken(user: UserEntity, role: UserRole): AuthResponse {
+    let userId: number;
+    let userDto: OwnerUserDto | DispatcherUserDto | DriverUserDto;
+    let responseKey: string;
+    let userWithCompany: CompanyOwner | Dispatcher | Driver;
+
+    if (role === UserRole.COMPANY_OWNER && 'company_owner_id' in user) {
+      const owner = user;
+      userId = owner.company_owner_id;
+      responseKey = 'owner';
+      userDto = OwnerMapper.toUserDto(owner, owner.company);
+      userWithCompany = owner;
+    } else if (role === UserRole.DISPATCHER && 'dispatcher_id' in user) {
+      const dispatcher = user;
+      userId = dispatcher.dispatcher_id;
+      responseKey = 'dispatcher';
+      userDto = DispatcherMapper.toUserDto(dispatcher);
+      userWithCompany = dispatcher;
+    } else if (role === UserRole.DRIVER && 'driver_id' in user) {
+      const driver = user;
+      userId = driver.driver_id;
+      responseKey = 'driver';
+      userDto = DriverMapper.toUserDto(driver);
+      userWithCompany = driver;
+    } else {
+      throw new Error(
+        'Unsupported user entity or role mismatch for token generation',
+      );
+    }
+
     const payload: JwtPayload = {
-      sub: driver.driver_id,
-      email: driver.email,
-      role: UserRole.DRIVER,
-      companyId: driver.company_id,
+      sub: userId,
+      email: user.email,
+      role: role,
+      companyId: userWithCompany.company_id,
     };
 
+    const accessToken = this.jwtService.sign(payload);
+
     return {
-      access_token: this.jwtService.sign(payload),
-      driver: DriverMapper.toUserDto(driver),
-    };
+      access_token: accessToken,
+      [responseKey]: userDto,
+    } as unknown as AuthResponse;
   }
 }

@@ -10,6 +10,9 @@ import { OwnerUserDto } from '../owner/dto/owner-user.dto';
 import { OwnerAuthResponseDto } from '../owner/dto/owner-auth-response.dto';
 import { DispatcherAuthResponseDto } from '../dispatcher/dto/dispatcher-auth-response.dto';
 import { DriverAuthResponseDto } from '../driver/dto/driver-auth-response.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { UserRole } from './types/user-role.enum';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -17,7 +20,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Public()
-  @Post('register/owner')
+  @Post('owner/register')
   @ApiOperation({
     summary: 'Register a new company owner',
   })
@@ -53,7 +56,7 @@ export class AuthController {
   @ApiOperation({
     summary: 'Verify email address',
     description:
-      'Verifies the email address and returns JWT token for automatic login',
+      'Verifies the email address and returns JWT token for automatic login (currently only supports Owner)',
   })
   @ApiResponse({
     status: 200,
@@ -81,7 +84,7 @@ export class AuthController {
   @Post('resend-verification')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Resend verification email',
+    summary: 'Resend verification email (currently only supports Owner)',
   })
   @ApiResponse({
     status: 200,
@@ -111,7 +114,7 @@ export class AuthController {
   }
 
   @Public()
-  @Post('login/owner')
+  @Post('owner/login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Company owner login',
@@ -146,7 +149,7 @@ export class AuthController {
   }
 
   @Public()
-  @Post('login/dispatcher')
+  @Post('dispatcher/login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Dispatcher login',
@@ -167,7 +170,7 @@ export class AuthController {
   }
 
   @Public()
-  @Post('login/driver')
+  @Post('driver/login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Driver login',
@@ -185,5 +188,109 @@ export class AuthController {
     @Body() loginDto: LoginDto,
   ): Promise<DriverAuthResponseDto> {
     return this.authService.loginDriver(loginDto);
+  }
+
+  @Public()
+  @Post('owner/forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Request password reset for company owner',
+  })
+  @ApiResponse({
+    status: 200,
+    description:
+      'If an account with that email exists, a password reset link has been sent.',
+    schema: {
+      example: {
+        message:
+          'If an account with that email exists, a password reset link has been sent.',
+      },
+    },
+  })
+  async forgotPasswordOwner(
+    @Body() forgotPasswordDto: ForgotPasswordDto,
+  ): Promise<{ message: string }> {
+    return this.authService.forgotPassword(
+      UserRole.COMPANY_OWNER,
+      forgotPasswordDto,
+    );
+  }
+
+  @Public()
+  @Post('dispatcher/forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Request password reset for dispatcher',
+  })
+  @ApiResponse({
+    status: 200,
+    description:
+      'If an account with that email exists, a password reset link has been sent.',
+    schema: {
+      example: {
+        message:
+          'If an account with that email exists, a password reset link has been sent.',
+      },
+    },
+  })
+  async forgotPasswordDispatcher(
+    @Body() forgotPasswordDto: ForgotPasswordDto,
+  ): Promise<{ message: string }> {
+    return this.authService.forgotPassword(
+      UserRole.DISPATCHER,
+      forgotPasswordDto,
+    );
+  }
+
+  @Public()
+  @Post('driver/forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Request password reset for driver',
+  })
+  @ApiResponse({
+    status: 200,
+    description:
+      'If an account with that email exists, a password reset link has been sent.',
+    schema: {
+      example: {
+        message:
+          'If an account with that email exists, a password reset link has been sent.',
+      },
+    },
+  })
+  async forgotPasswordDriver(
+    @Body() forgotPasswordDto: ForgotPasswordDto,
+  ): Promise<{ message: string }> {
+    return this.authService.forgotPassword(UserRole.DRIVER, forgotPasswordDto);
+  }
+
+  @Public()
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Reset password using a unique token for any user role',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Password has been reset successfully',
+    schema: {
+      example: {
+        message: 'Password has been reset successfully',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid or expired reset token',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'User not found',
+  })
+  async resetPassword(
+    @Body() resetPasswordDto: ResetPasswordDto,
+  ): Promise<{ message: string }> {
+    return this.authService.resetPassword(resetPasswordDto);
   }
 }
