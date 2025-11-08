@@ -1,9 +1,0 @@
-export { Company } from './company.entity';
-export { CompanyOwner } from './company-owner.entity';
-export { Driver } from './driver.entity';
-export { Dispatcher } from './dispatcher.entity';
-export { Vehicle } from './vehicle.entity';
-export { Tracker } from './tracker.entity';
-export { TrackingChannel } from './tracking-channel.entity';
-export { Trip, TripStatus } from './trip.entity';
-export { SensorData } from './sensor-data.entity';

@@ -1,8 +1,10 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
+import { AuthModule } from './auth/auth.module';
+import { OwnerModule } from './owner/owner.module';
+import { DispatcherModule } from './dispatcher/dispatcher.module';
+import { DriverModule } from './driver/driver.module';
 
 @Module({
   imports: [
@@ -25,8 +27,10 @@ import { AppService } from './app.service';
       }),
       inject: [ConfigService],
     }),
+    AuthModule,
+    OwnerModule,
+    DispatcherModule,
+    DriverModule,
   ],
-  controllers: [AppController],
-  providers: [AppService],
 })
 export class AppModule {}

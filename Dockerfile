@@ -20,9 +20,9 @@ COPY tsconfig*.json ./
 RUN npm ci
 
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/src/migrations ./src/migrations
+COPY --from=builder /app/src/common/migrations ./src/common/migrations
 COPY --from=builder /app/src/data-source.ts ./src/data-source.ts
-COPY --from=builder /app/src/entities ./src/entities
+COPY --from=builder /app/src/common/entities ./src/common/entities
 
 EXPOSE 3000
 
