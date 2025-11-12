@@ -5,6 +5,8 @@ import { welcomeTemplateEn } from './templates/en/welcome.template';
 import { welcomeTemplateUk } from './templates/uk/welcome.template';
 import { passwordResetTemplateEn } from './templates/en/password-reset.template';
 import { passwordResetTemplateUk } from './templates/uk/password-reset.template';
+import { invitationTemplateEn } from './templates/en/invitation.template';
+import { invitationTemplateUk } from './templates/uk/invitation.template';
 import { UserLanguage } from '../common/types/UserLanguage';
 
 type EmailContent = { subject: string; html: string; text: string };
@@ -41,6 +43,21 @@ export class EmailTemplateService {
       case UserLanguage.ENGLISH:
       default:
         return passwordResetTemplateEn(link);
+    }
+  }
+
+  getInvitationTemplate(
+    link: string,
+    companyName: string,
+    role: string,
+    language: UserLanguage,
+  ): EmailContent {
+    switch (language) {
+      case UserLanguage.UKRAINIAN:
+        return invitationTemplateUk(link, companyName, role);
+      case UserLanguage.ENGLISH:
+      default:
+        return invitationTemplateEn(link, companyName, role);
     }
   }
 }

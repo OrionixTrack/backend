@@ -12,13 +12,7 @@ import { Dispatcher } from './dispatcher.entity';
 import { Vehicle } from './vehicle.entity';
 import { TrackingChannel } from './tracking-channel.entity';
 import { SensorData } from './sensor-data.entity';
-
-export enum TripStatus {
-  PLANNED = 'planned',
-  IN_PROGRESS = 'in_progress',
-  COMPLETED = 'completed',
-  CANCELLED = 'cancelled',
-}
+import { TripStatus } from '../types/trip-status';
 
 @Entity('trip')
 export class Trip {

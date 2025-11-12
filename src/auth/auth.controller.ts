@@ -13,11 +13,16 @@ import { DriverAuthResponseDto } from '../driver/dto/driver-auth-response.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { UserRole } from './types/user-role.enum';
+import { AcceptInvitationDto } from '../owner/dto/accept-invitation.dto';
+import { InvitationService } from '../owner/invitation.service';
 
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly invitationService: InvitationService,
+  ) {}
 
   @Public()
   @Post('owner/register')
@@ -292,5 +297,28 @@ export class AuthController {
     @Body() resetPasswordDto: ResetPasswordDto,
   ): Promise<{ message: string }> {
     return this.authService.resetPassword(resetPasswordDto);
+  }
+
+  @Public()
+  @Post('accept-invitation')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Accept an invitation and create employee account',
+    description:
+      'Accepts the invitation, creates the employee account, and returns authentication token for automatic login',
+  })
+  @ApiResponse({
+    status: 200,
+    description:
+      'Invitation accepted successfully. Returns authentication token and user data',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid or expired invitation token',
+  })
+  async acceptInvitation(
+    @Body() acceptDto: AcceptInvitationDto,
+  ): Promise<DriverAuthResponseDto | DispatcherAuthResponseDto> {
+    return this.invitationService.acceptInvitation(acceptDto);
   }
 }

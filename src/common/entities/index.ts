@@ -5,6 +5,7 @@ export { Dispatcher } from './dispatcher.entity';
 export { Vehicle } from './vehicle.entity';
 export { Tracker } from './tracker.entity';
 export { TrackingChannel } from './tracking-channel.entity';
-export { Trip, TripStatus } from './trip.entity';
+export { Trip } from './trip.entity';
 export { SensorData } from './sensor-data.entity';
 export { PasswordResetToken } from './password-reset-token.entity';
+export { Invitation } from './invitation.entity';

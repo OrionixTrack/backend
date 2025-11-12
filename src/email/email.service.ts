@@ -56,4 +56,23 @@ export class EmailService {
 
     await this.emailProvider.sendEmail({ to: email, subject, html, text });
   }
+
+  async sendInvitationEmail(
+    email: string,
+    token: string,
+    companyName: string,
+    role: string,
+    language: UserLanguage,
+  ): Promise<void> {
+    const invitationLink = `${this.frontendUrl}/auth/accept-invitation?token=${token}`;
+
+    const { subject, html, text } = this.templateService.getInvitationTemplate(
+      invitationLink,
+      companyName,
+      role,
+      language,
+    );
+
+    await this.emailProvider.sendEmail({ to: email, subject, html, text });
+  }
 }
