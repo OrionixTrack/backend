@@ -9,16 +9,17 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { OwnerUserDto } from './dto/owner-user.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { CompanyDto } from '../common/dto/company.dto';
+import { CompanyStatsDto } from './dto/company-stats.dto';
 
 @ApiTags('Owner')
 @ApiBearerAuth('JWT-auth')
 @UseGuards(RolesGuard)
 @Controller('owner')
+@Roles(UserRole.COMPANY_OWNER)
 export class OwnerController {
   constructor(private readonly ownerService: OwnerService) {}
 
   @Get('profile')
-  @Roles(UserRole.COMPANY_OWNER)
   @ApiOperation({ summary: 'Get current Company Owner profile' })
   async getProfile(
     @CurrentUser() user: CurrentUserData,
@@ -26,8 +27,15 @@ export class OwnerController {
     return this.ownerService.getProfile(user.userId);
   }
 
+  @Get('stats')
+  @ApiOperation({ summary: 'Get company statistics (counts of entities)' })
+  async getStats(
+    @CurrentUser() user: CurrentUserData,
+  ): Promise<CompanyStatsDto> {
+    return this.ownerService.getCompanyStats(user.companyId);
+  }
+
   @Put('company')
-  @Roles(UserRole.COMPANY_OWNER)
   @ApiOperation({ summary: 'Update company information' })
   async updateCompany(
     @CurrentUser() user: CurrentUserData,
