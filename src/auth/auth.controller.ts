@@ -13,8 +13,8 @@ import { DriverAuthResponseDto } from '../driver/dto/driver-auth-response.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { UserRole } from './types/user-role.enum';
-import { AcceptInvitationDto } from '../owner/dto/accept-invitation.dto';
-import { InvitationService } from '../owner/invitation.service';
+import { AcceptInvitationDto } from '../owner/invitations/dto/accept-invitation.dto';
+import { InvitationService } from '../owner/invitations/invitation.service';
 
 @ApiTags('Authentication')
 @Controller('auth')

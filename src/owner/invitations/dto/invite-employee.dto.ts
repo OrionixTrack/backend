@@ -1,6 +1,6 @@
 import { IsEmail, IsEnum, IsNotEmpty } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { EmployeeRole } from '../../common/types/employee-role';
+import { EmployeeRole } from '../../../common/types/employee-role';
 
 export class InviteEmployeeDto {
   @ApiProperty({

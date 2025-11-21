@@ -19,15 +19,14 @@ import {
   ApiParam,
 } from '@nestjs/swagger';
 import { EmployeeManagementService } from './employee-management.service';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
-import { UserRole } from '../auth/types/user-role.enum';
-import type { CurrentUserData } from '../auth/decorators/current-user.decorator';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { EmployeeResponseDto } from './dto/employee-response.dto';
 import { EmployeeQueryDto } from './dto/employee-query.dto';
-import { PaginatedEmployeeResponseDto } from './dto/paginated-employee-response.dto';
+import { type CurrentUserData } from '../../auth/decorators/current-user.decorator';
+import { CurrentUser } from '../../auth/decorators/current-user.decorator';
+import { UserRole } from '../../auth/types/user-role.enum';
+import { Roles } from '../../auth/decorators/roles.decorator';
+import { RolesGuard } from '../../auth/guards/roles.guard';
 
 @ApiTags('Employee Management')
 @ApiBearerAuth('JWT-auth')
@@ -45,7 +44,7 @@ export class EmployeeController {
   async getDrivers(
     @CurrentUser() user: CurrentUserData,
     @Query() query: EmployeeQueryDto,
-  ): Promise<PaginatedEmployeeResponseDto> {
+  ): Promise<EmployeeResponseDto[]> {
     return this.employeeService.getDriversByCompany(user.companyId, query);
   }
 
@@ -58,7 +57,7 @@ export class EmployeeController {
   async getDispatchers(
     @CurrentUser() user: CurrentUserData,
     @Query() query: EmployeeQueryDto,
-  ): Promise<PaginatedEmployeeResponseDto> {
+  ): Promise<EmployeeResponseDto[]> {
     return this.employeeService.getDispatchersByCompany(user.companyId, query);
   }
 

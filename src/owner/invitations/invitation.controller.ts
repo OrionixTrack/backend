@@ -6,11 +6,11 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { InvitationService } from './invitation.service';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
-import { UserRole } from '../auth/types/user-role.enum';
-import type { CurrentUserData } from '../auth/decorators/current-user.decorator';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { RolesGuard } from '../../auth/guards/roles.guard';
+import { Roles } from '../../auth/decorators/roles.decorator';
+import { UserRole } from '../../auth/types/user-role.enum';
+import type { CurrentUserData } from '../../auth/decorators/current-user.decorator';
+import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { InviteEmployeeDto } from './dto/invite-employee.dto';
 import { InvitationResponseDto } from './dto/invitation-response.dto';
 

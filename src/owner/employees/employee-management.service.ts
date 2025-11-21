@@ -5,12 +5,11 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Brackets } from 'typeorm';
-import { Driver, Dispatcher, CompanyOwner } from '../common/entities';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
-import { UpdateOwnerProfileDto } from './dto/update-owner-profile.dto';
 import { EmployeeResponseDto } from './dto/employee-response.dto';
 import { EmployeeQueryDto } from './dto/employee-query.dto';
-import { PaginatedEmployeeResponseDto } from './dto/paginated-employee-response.dto';
+import { CompanyOwner, Dispatcher, Driver } from '../../common/entities';
+import { UpdateOwnerProfileDto } from '../dto/update-owner-profile.dto';
 
 @Injectable()
 export class EmployeeManagementService {
@@ -26,7 +25,7 @@ export class EmployeeManagementService {
   async getDriversByCompany(
     companyId: number,
     query: EmployeeQueryDto,
-  ): Promise<PaginatedEmployeeResponseDto> {
+  ): Promise<EmployeeResponseDto[]> {
     const { limit, offset, search, sortBy, sortOrder } = query;
 
     const queryBuilder = this.driverRepository
@@ -51,27 +50,15 @@ export class EmployeeManagementService {
 
     queryBuilder.orderBy(`driver.${sortBy}`, sortOrder);
 
-    const [drivers, total] = await queryBuilder
-      .skip(offset)
-      .take(limit)
-      .getManyAndCount();
+    const drivers = await queryBuilder.skip(offset).take(limit).getMany();
 
-    return {
-      data: drivers.map((driver) => this.toEmployeeDto(driver)),
-      meta: {
-        total,
-        count: drivers.length,
-        limit: limit!,
-        offset: offset!,
-        hasMore: offset! + drivers.length < total,
-      },
-    };
+    return drivers.map((driver) => this.toEmployeeDto(driver));
   }
 
   async getDispatchersByCompany(
     companyId: number,
     query: EmployeeQueryDto,
-  ): Promise<PaginatedEmployeeResponseDto> {
+  ): Promise<EmployeeResponseDto[]> {
     const { limit, offset, search, sortBy, sortOrder } = query;
 
     const queryBuilder = this.dispatcherRepository
@@ -96,21 +83,9 @@ export class EmployeeManagementService {
 
     queryBuilder.orderBy(`dispatcher.${sortBy}`, sortOrder);
 
-    const [dispatchers, total] = await queryBuilder
-      .skip(offset)
-      .take(limit)
-      .getManyAndCount();
+    const dispatchers = await queryBuilder.skip(offset).take(limit).getMany();
 
-    return {
-      data: dispatchers.map((dispatcher) => this.toEmployeeDto(dispatcher)),
-      meta: {
-        total,
-        count: dispatchers.length,
-        limit: limit!,
-        offset: offset!,
-        hasMore: offset! + dispatchers.length < total,
-      },
-    };
+    return dispatchers.map((dispatcher) => this.toEmployeeDto(dispatcher));
   }
 
   async updateDriver(

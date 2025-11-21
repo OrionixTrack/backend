@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { InvitationStatus } from '../../common/types/invitation-status';
-import { EmployeeRole } from '../../common/types/employee-role';
+import { EmployeeRole } from '../../../common/types/employee-role';
+import { InvitationStatus } from '../../../common/types/invitation-status';
 
 export class InvitationResponseDto {
   @ApiProperty({

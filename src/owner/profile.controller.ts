@@ -1,13 +1,13 @@
 import { Controller, Put, Body, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { EmployeeManagementService } from './employee-management.service';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../auth/types/user-role.enum';
 import type { CurrentUserData } from '../auth/decorators/current-user.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { UpdateOwnerProfileDto } from './dto/update-owner-profile.dto';
+import { EmployeeManagementService } from './employees/employee-management.service';
+import { UpdateEmployeeDto } from './employees/dto/update-employee.dto';
 
 @ApiTags('Profile')
 @ApiBearerAuth('JWT-auth')

@@ -6,7 +6,7 @@ import {
   MaxLength,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { UserLanguage } from '../../common/types/UserLanguage';
+import { UserLanguage } from '../../../common/types/UserLanguage';
 
 export class AcceptInvitationDto {
   @ApiProperty({
