@@ -30,24 +30,8 @@ export class AuthController {
     summary: 'Register a new company owner',
   })
   @ApiResponse({
-    status: 201,
-    description:
-      'Registration successful. Returns the newly created owner profile. A verification email has been sent.',
-    type: OwnerUserDto,
-  })
-  @ApiResponse({
     status: 409,
     description: 'Email already registered',
-    schema: {
-      example: {
-        message: 'Email already registered',
-        error: 'Conflict',
-      },
-    },
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Bad request - Invalid input data',
   })
   async registerOwner(
     @Body() registerDto: RegisterOwnerDto,
@@ -61,23 +45,11 @@ export class AuthController {
   @ApiOperation({
     summary: 'Verify email address',
     description:
-      'Verifies the email address and returns JWT token for automatic login (currently only supports Owner)',
-  })
-  @ApiResponse({
-    status: 200,
-    description:
-      'Email verified successfully. User is automatically logged in.',
-    type: OwnerAuthResponseDto,
+      'Verifies the email address and returns JWT token for automatic login',
   })
   @ApiResponse({
     status: 400,
     description: 'Invalid or expired token, or email already verified',
-    schema: {
-      example: {
-        message: 'Invalid verification token',
-        error: 'Bad Request',
-      },
-    },
   })
   async verifyEmail(
     @Body() verifyDto: VerifyEmailDto,
@@ -89,21 +61,11 @@ export class AuthController {
   @Post('resend-verification')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Resend verification email (currently only supports Owner)',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Verification email sent successfully.',
+    summary: 'Resend verification email',
   })
   @ApiResponse({
     status: 404,
     description: 'User not found',
-    schema: {
-      example: {
-        message: 'User not found',
-        error: 'Not Found',
-      },
-    },
   })
   @ApiResponse({
     status: 400,
@@ -125,29 +87,12 @@ export class AuthController {
     summary: 'Company owner login',
   })
   @ApiResponse({
-    status: 200,
-    description: 'Login successful',
-    type: OwnerAuthResponseDto,
-  })
-  @ApiResponse({
     status: 401,
     description: 'Invalid credentials',
-    schema: {
-      example: {
-        message: 'Invalid credentials',
-        error: 'Unauthorized',
-      },
-    },
   })
   @ApiResponse({
     status: 403,
     description: 'Email not verified',
-    schema: {
-      example: {
-        message: 'Please verify your email before logging in',
-        error: 'Forbidden',
-      },
-    },
   })
   async loginOwner(@Body() loginDto: LoginDto): Promise<OwnerAuthResponseDto> {
     return this.authService.loginOwner(loginDto);
@@ -158,11 +103,6 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Dispatcher login',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Login successful',
-    type: DispatcherAuthResponseDto,
   })
   @ApiResponse({
     status: 401,
@@ -181,11 +121,6 @@ export class AuthController {
     summary: 'Driver login',
   })
   @ApiResponse({
-    status: 200,
-    description: 'Login successful',
-    type: DriverAuthResponseDto,
-  })
-  @ApiResponse({
     status: 401,
     description: 'Invalid credentials',
   })
@@ -200,17 +135,6 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Request password reset for company owner',
-  })
-  @ApiResponse({
-    status: 200,
-    description:
-      'If an account with that email exists, a password reset link has been sent.',
-    schema: {
-      example: {
-        message:
-          'If an account with that email exists, a password reset link has been sent.',
-      },
-    },
   })
   async forgotPasswordOwner(
     @Body() forgotPasswordDto: ForgotPasswordDto,
@@ -227,17 +151,6 @@ export class AuthController {
   @ApiOperation({
     summary: 'Request password reset for dispatcher',
   })
-  @ApiResponse({
-    status: 200,
-    description:
-      'If an account with that email exists, a password reset link has been sent.',
-    schema: {
-      example: {
-        message:
-          'If an account with that email exists, a password reset link has been sent.',
-      },
-    },
-  })
   async forgotPasswordDispatcher(
     @Body() forgotPasswordDto: ForgotPasswordDto,
   ): Promise<{ message: string }> {
@@ -253,17 +166,6 @@ export class AuthController {
   @ApiOperation({
     summary: 'Request password reset for driver',
   })
-  @ApiResponse({
-    status: 200,
-    description:
-      'If an account with that email exists, a password reset link has been sent.',
-    schema: {
-      example: {
-        message:
-          'If an account with that email exists, a password reset link has been sent.',
-      },
-    },
-  })
   async forgotPasswordDriver(
     @Body() forgotPasswordDto: ForgotPasswordDto,
   ): Promise<{ message: string }> {
@@ -275,15 +177,6 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Reset password using a unique token for any user role',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Password has been reset successfully',
-    schema: {
-      example: {
-        message: 'Password has been reset successfully',
-      },
-    },
   })
   @ApiResponse({
     status: 400,
@@ -304,17 +197,6 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Accept an invitation and create employee account',
-    description:
-      'Accepts the invitation, creates the employee account, and returns authentication token for automatic login',
-  })
-  @ApiResponse({
-    status: 200,
-    description:
-      'Invitation accepted successfully. Returns authentication token and user data',
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Invalid or expired invitation token',
   })
   async acceptInvitation(
     @Body() acceptDto: AcceptInvitationDto,

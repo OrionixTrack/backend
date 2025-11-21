@@ -1,10 +1,5 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
-import {
-  ApiBearerAuth,
-  ApiOperation,
-  ApiResponse,
-  ApiTags,
-} from '@nestjs/swagger';
+import { Body, Controller, Get, Put, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { CurrentUserData } from '../auth/decorators/current-user.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { OwnerService } from './owner.service';
@@ -12,6 +7,8 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../auth/types/user-role.enum';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { OwnerUserDto } from './dto/owner-user.dto';
+import { UpdateCompanyDto } from './dto/update-company.dto';
+import { CompanyDto } from '../common/dto/company.dto';
 
 @ApiTags('Owner')
 @ApiBearerAuth('JWT-auth')
@@ -23,22 +20,19 @@ export class OwnerController {
   @Get('profile')
   @Roles(UserRole.COMPANY_OWNER)
   @ApiOperation({ summary: 'Get current Company Owner profile' })
-  @ApiResponse({
-    status: 200,
-    description: 'Returns the current authenticated owner profile',
-    type: OwnerUserDto,
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Unauthorized - Invalid or missing token',
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Forbidden - User does not have the correct role',
-  })
   async getProfile(
     @CurrentUser() user: CurrentUserData,
   ): Promise<OwnerUserDto> {
     return this.ownerService.getProfile(user.userId);
+  }
+
+  @Put('company')
+  @Roles(UserRole.COMPANY_OWNER)
+  @ApiOperation({ summary: 'Update company information' })
+  async updateCompany(
+    @CurrentUser() user: CurrentUserData,
+    @Body() updateCompanyDto: UpdateCompanyDto,
+  ): Promise<CompanyDto> {
+    return this.ownerService.updateCompany(user.companyId, updateCompanyDto);
   }
 }

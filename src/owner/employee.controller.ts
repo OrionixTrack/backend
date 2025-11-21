@@ -42,19 +42,6 @@ export class EmployeeController {
     summary:
       'Get all drivers in the company with pagination, search, and sorting',
   })
-  @ApiResponse({
-    status: 200,
-    description: 'Returns paginated list of drivers',
-    type: PaginatedEmployeeResponseDto,
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Unauthorized - Invalid or missing token',
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Forbidden - User is not a Company Owner',
-  })
   async getDrivers(
     @CurrentUser() user: CurrentUserData,
     @Query() query: EmployeeQueryDto,
@@ -68,19 +55,6 @@ export class EmployeeController {
     summary:
       'Get all dispatchers in the company with pagination, search, and sorting',
   })
-  @ApiResponse({
-    status: 200,
-    description: 'Returns paginated list of dispatchers',
-    type: PaginatedEmployeeResponseDto,
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Unauthorized - Invalid or missing token',
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Forbidden - User is not a Company Owner',
-  })
   async getDispatchers(
     @CurrentUser() user: CurrentUserData,
     @Query() query: EmployeeQueryDto,
@@ -92,19 +66,6 @@ export class EmployeeController {
   @Roles(UserRole.COMPANY_OWNER)
   @ApiOperation({ summary: 'Update driver information' })
   @ApiParam({ name: 'id', description: 'Driver ID', type: Number })
-  @ApiResponse({
-    status: 200,
-    description: 'Driver updated successfully',
-    type: EmployeeResponseDto,
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Unauthorized - Invalid or missing token',
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Forbidden - User is not a Company Owner',
-  })
   @ApiResponse({
     status: 404,
     description: 'Driver not found',
@@ -125,19 +86,6 @@ export class EmployeeController {
   @Roles(UserRole.COMPANY_OWNER)
   @ApiOperation({ summary: 'Update dispatcher information' })
   @ApiParam({ name: 'id', description: 'Dispatcher ID', type: Number })
-  @ApiResponse({
-    status: 200,
-    description: 'Dispatcher updated successfully',
-    type: EmployeeResponseDto,
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Unauthorized - Invalid or missing token',
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Forbidden - User is not a Company Owner',
-  })
   @ApiResponse({
     status: 404,
     description: 'Dispatcher not found',
@@ -160,18 +108,6 @@ export class EmployeeController {
   @ApiOperation({ summary: 'Remove driver from company' })
   @ApiParam({ name: 'id', description: 'Driver ID', type: Number })
   @ApiResponse({
-    status: 204,
-    description: 'Driver removed successfully',
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Unauthorized - Invalid or missing token',
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Forbidden - User is not a Company Owner',
-  })
-  @ApiResponse({
     status: 404,
     description: 'Driver not found',
   })
@@ -187,18 +123,6 @@ export class EmployeeController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Remove dispatcher from company' })
   @ApiParam({ name: 'id', description: 'Dispatcher ID', type: Number })
-  @ApiResponse({
-    status: 204,
-    description: 'Dispatcher removed successfully',
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Unauthorized - Invalid or missing token',
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Forbidden - User is not a Company Owner',
-  })
   @ApiResponse({
     status: 404,
     description: 'Dispatcher not found',

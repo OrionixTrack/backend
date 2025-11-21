@@ -1,10 +1,5 @@
 import { Controller, Get, UseGuards } from '@nestjs/common';
-import {
-  ApiBearerAuth,
-  ApiOperation,
-  ApiResponse,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { CurrentUserData } from '../auth/decorators/current-user.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { DriverService } from './driver.service';
@@ -23,19 +18,6 @@ export class DriverController {
   @Get('profile')
   @Roles(UserRole.DRIVER)
   @ApiOperation({ summary: 'Get current Driver profile' })
-  @ApiResponse({
-    status: 200,
-    description: 'Returns the current authenticated driver profile',
-    type: DriverUserDto,
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Unauthorized - Invalid or missing token',
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Forbidden - User does not have the correct role',
-  })
   async getProfile(
     @CurrentUser() user: CurrentUserData,
   ): Promise<DriverUserDto> {
