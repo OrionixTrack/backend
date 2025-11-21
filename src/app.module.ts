@@ -6,6 +6,7 @@ import { AuthModule } from './auth/auth.module';
 import { OwnerModule } from './owner/owner.module';
 import { DispatcherModule } from './dispatcher/dispatcher.module';
 import { DriverModule } from './driver/driver.module';
+import { TripModule } from './trip/trip.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { DriverModule } from './driver/driver.module';
     OwnerModule,
     DispatcherModule,
     DriverModule,
+    TripModule,
   ],
 })
 export class AppModule {}
