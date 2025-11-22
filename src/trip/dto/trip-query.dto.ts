@@ -1,7 +1,8 @@
 import { PageOptionsDto } from '../../common/dto/page-options.dto';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsDateString, IsEnum, IsOptional } from 'class-validator';
+import { IsBoolean, IsDateString, IsEnum, IsOptional } from 'class-validator';
 import { TripStatus } from '../../common/types/trip-status';
+import { Transform } from 'class-transformer';
 
 export enum TripSortField {
   START_DATE = 'planned_start_datetime',
@@ -39,4 +40,13 @@ export class TripQueryDto extends PageOptionsDto {
   @IsDateString()
   @IsOptional()
   dateTo?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filter trips created by current dispatcher',
+    default: false,
+  })
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  @IsOptional()
+  createdByMe?: boolean = false;
 }

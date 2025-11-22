@@ -30,7 +30,7 @@ export class TripController {
     @CurrentUser() user: CurrentUserData,
     @Query() query: TripQueryDto,
   ): Promise<TripResponseDto[]> {
-    return this.tripService.findAllForOwner(user.companyId, query);
+    return this.tripService.findAll(user.companyId, query);
   }
 
   @Get(':id')
@@ -39,6 +39,6 @@ export class TripController {
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user: CurrentUserData,
   ): Promise<TripResponseDto> {
-    return this.tripService.findOneWithTrack(id, user.companyId);
+    return this.tripService.findOne(id, user.companyId);
   }
 }

@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { TripDriverDto } from './trip-driver.dto';
+import { TripUserDto } from './trip-user.dto';
 import { TripVehicleDto } from './trip-vehicle.dto';
 import { TripStatus } from '../../common/types/trip-status';
 
@@ -46,14 +46,14 @@ export class TripResponseDto {
   @ApiProperty()
   finishLongitude: number;
 
-  @ApiPropertyOptional({ type: TripDriverDto })
-  driver?: TripDriverDto;
+  @ApiPropertyOptional({ type: TripUserDto })
+  driver?: TripUserDto;
 
   @ApiPropertyOptional({ type: TripVehicleDto })
   vehicle?: TripVehicleDto;
 
-  @ApiPropertyOptional({ type: String })
-  dispatcherName?: string;
+  @ApiPropertyOptional({ type: TripUserDto })
+  createdByDispatcher?: TripUserDto;
 
   @ApiPropertyOptional({
     nullable: true,

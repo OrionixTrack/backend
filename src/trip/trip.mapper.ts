@@ -28,15 +28,21 @@ export class TripMapper {
             surname: trip.assignedDriver.surname,
           }
         : undefined,
-      vehicle: {
-        id: trip.vehicle.vehicle_id,
-        name: trip.vehicle.name,
-        licensePlate: trip.vehicle.license_plate,
-        brand: trip.vehicle.brand ?? '',
-        model: trip.vehicle.model ?? '',
-      },
-      dispatcherName: trip.createdByDispatcher
-        ? `${trip.createdByDispatcher.name} ${trip.createdByDispatcher.surname}`
+      vehicle: trip.vehicle
+        ? {
+            id: trip.vehicle.vehicle_id,
+            name: trip.vehicle.name,
+            licensePlate: trip.vehicle.license_plate,
+            brand: trip.vehicle.brand ?? '',
+            model: trip.vehicle.model ?? '',
+          }
+        : undefined,
+      createdByDispatcher: trip.createdByDispatcher
+        ? {
+            id: trip.createdByDispatcher.dispatcher_id,
+            name: trip.createdByDispatcher.name,
+            surname: trip.createdByDispatcher.surname,
+          }
         : undefined,
       trackPolyline: trackPolyline || undefined,
     };
