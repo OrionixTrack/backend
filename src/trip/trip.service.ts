@@ -8,7 +8,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Repository } from 'typeorm';
 import * as polyline from '@mapbox/polyline';
 import { Driver, SensorData, Trip, Vehicle } from '../common/entities';
-import { TripQueryDto } from './dto/trip-query.dto';
+import { TripQueryDto, TripSortField } from './dto/trip-query.dto';
+import { DriverTripQueryDto } from '../driver/dto/driver-trip-query.dto';
+import { ActiveTripResponseDto } from '../driver/dto/active-trip-response.dto';
 import { TripResponseDto } from './dto/trip-response.dto';
 import { TripMapper } from './trip.mapper';
 import { TripStatus } from '../common/types/trip-status';
@@ -46,35 +48,13 @@ export class TripService {
       });
     }
 
-    if (query.search) {
-      qb.andWhere(
-        new Brackets((innerQb) => {
-          innerQb
-            .where('trip.name ILIKE :search', { search: `%${query.search}%` })
-            .orWhere('trip.start_address ILIKE :search', {
-              search: `%${query.search}%`,
-            })
-            .orWhere('trip.finish_address ILIKE :search', {
-              search: `%${query.search}%`,
-            });
-        }),
-      );
-    }
+    this.applySearchFilter(qb, query.search);
 
     if (query.status) {
       qb.andWhere('trip.status = :status', { status: query.status });
     }
 
-    if (query.dateFrom) {
-      qb.andWhere('trip.planned_start_datetime >= :dateFrom', {
-        dateFrom: query.dateFrom,
-      });
-    }
-    if (query.dateTo) {
-      qb.andWhere('trip.planned_start_datetime <= :dateTo', {
-        dateTo: query.dateTo,
-      });
-    }
+    this.applyDateFilters(qb, query.dateFrom, query.dateTo);
 
     const trips = await qb
       .orderBy(`trip.${query.sortBy}`, query.sortOrder)
@@ -249,48 +229,14 @@ export class TripService {
   }
 
   async startTrip(tripId: number, companyId: number): Promise<TripResponseDto> {
-    const trip = await this.tripRepository.findOne({
-      where: { trip_id: tripId, company_id: companyId },
-    });
-
-    if (!trip) {
-      throw new NotFoundException('Trip not found');
-    }
-
-    if (trip.status !== TripStatus.PLANNED) {
-      throw new ForbiddenException('Can only start planned trips');
-    }
-
-    if (!trip.vehicle_id) {
-      throw new BadRequestException(
-        'Vehicle must be assigned before starting trip',
-      );
-    }
-
-    trip.status = TripStatus.IN_PROGRESS;
-    trip.actual_start_datetime = new Date();
-    await this.tripRepository.save(trip);
-
+    const trip = await this.getTripByCompany(tripId, companyId);
+    await this.performStartTrip(trip);
     return this.findOne(tripId, companyId);
   }
 
   async endTrip(tripId: number, companyId: number): Promise<TripResponseDto> {
-    const trip = await this.tripRepository.findOne({
-      where: { trip_id: tripId, company_id: companyId },
-    });
-
-    if (!trip) {
-      throw new NotFoundException('Trip not found');
-    }
-
-    if (trip.status !== TripStatus.IN_PROGRESS) {
-      throw new ForbiddenException('Can only end trips that are in progress');
-    }
-
-    trip.status = TripStatus.COMPLETED;
-    trip.end_datetime = new Date();
-    await this.tripRepository.save(trip);
-
+    const trip = await this.getTripByCompany(tripId, companyId);
+    await this.performEndTrip(trip);
     return this.findOne(tripId, companyId);
   }
 
@@ -373,5 +319,176 @@ export class TripService {
     if (!vehicle.is_active) {
       throw new BadRequestException('Vehicle is not active');
     }
+  }
+
+  private async getTripByCompany(
+    tripId: number,
+    companyId: number,
+  ): Promise<Trip> {
+    const trip = await this.tripRepository.findOne({
+      where: { trip_id: tripId, company_id: companyId },
+    });
+
+    if (!trip) {
+      throw new NotFoundException('Trip not found');
+    }
+
+    return trip;
+  }
+
+  private async getTripByDriver(
+    tripId: number,
+    driverId: number,
+  ): Promise<Trip> {
+    const trip = await this.tripRepository.findOne({
+      where: { trip_id: tripId, assigned_driver_id: driverId },
+    });
+
+    if (!trip) {
+      throw new NotFoundException('Trip not found or not assigned to you');
+    }
+
+    return trip;
+  }
+
+  private async performStartTrip(trip: Trip): Promise<void> {
+    if (trip.status !== TripStatus.PLANNED) {
+      throw new ForbiddenException('Can only start planned trips');
+    }
+
+    if (!trip.vehicle_id) {
+      throw new BadRequestException(
+        'Vehicle must be assigned before starting trip',
+      );
+    }
+
+    trip.status = TripStatus.IN_PROGRESS;
+    trip.actual_start_datetime = new Date();
+    await this.tripRepository.save(trip);
+  }
+
+  private async performEndTrip(trip: Trip): Promise<void> {
+    if (trip.status !== TripStatus.IN_PROGRESS) {
+      throw new ForbiddenException('Can only end trips that are in progress');
+    }
+
+    trip.status = TripStatus.COMPLETED;
+    trip.end_datetime = new Date();
+    await this.tripRepository.save(trip);
+  }
+
+  private applySearchFilter(
+    qb: ReturnType<Repository<Trip>['createQueryBuilder']>,
+    search?: string,
+  ): void {
+    if (search) {
+      qb.andWhere(
+        new Brackets((innerQb) => {
+          innerQb
+            .where('trip.name ILIKE :search', { search: `%${search}%` })
+            .orWhere('trip.start_address ILIKE :search', {
+              search: `%${search}%`,
+            })
+            .orWhere('trip.finish_address ILIKE :search', {
+              search: `%${search}%`,
+            });
+        }),
+      );
+    }
+  }
+
+  private applyDateFilters(
+    qb: ReturnType<Repository<Trip>['createQueryBuilder']>,
+    dateFrom?: string,
+    dateTo?: string,
+  ): void {
+    if (dateFrom) {
+      qb.andWhere('trip.planned_start_datetime >= :dateFrom', { dateFrom });
+    }
+    if (dateTo) {
+      qb.andWhere('trip.planned_start_datetime <= :dateTo', { dateTo });
+    }
+  }
+
+  async findAllForDriver(
+    driverId: number,
+    query: DriverTripQueryDto,
+    includeHistory: boolean,
+  ): Promise<TripResponseDto[]> {
+    const qb = this.tripRepository
+      .createQueryBuilder('trip')
+      .leftJoinAndSelect('trip.assignedDriver', 'driver')
+      .leftJoinAndSelect('trip.vehicle', 'vehicle')
+      .leftJoinAndSelect('trip.createdByDispatcher', 'dispatcher')
+      .where('trip.assigned_driver_id = :driverId', { driverId });
+
+    const statuses = includeHistory
+      ? [TripStatus.COMPLETED, TripStatus.CANCELLED]
+      : [TripStatus.PLANNED, TripStatus.IN_PROGRESS];
+    qb.andWhere('trip.status IN (:...statuses)', { statuses });
+
+    this.applySearchFilter(qb, query.search);
+    this.applyDateFilters(qb, query.dateFrom, query.dateTo);
+
+    const sortBy = query.sortBy ?? TripSortField.START_DATE;
+    const trips = await qb
+      .orderBy(`trip.${sortBy}`, query.sortOrder)
+      .skip(query.offset)
+      .take(query.limit)
+      .getMany();
+
+    return trips.map((trip) => TripMapper.toDto(trip));
+  }
+
+  async findActiveForDriver(driverId: number): Promise<ActiveTripResponseDto> {
+    const trip = await this.tripRepository.findOne({
+      where: {
+        assigned_driver_id: driverId,
+        status: TripStatus.IN_PROGRESS,
+      },
+      relations: ['assignedDriver', 'vehicle', 'createdByDispatcher'],
+    });
+
+    if (!trip) {
+      return { activeTrip: null };
+    }
+
+    const trackPolyline = await this.getTrackPolyline(trip.trip_id);
+    return { activeTrip: TripMapper.toDto(trip, trackPolyline) };
+  }
+
+  async findOneForDriver(
+    tripId: number,
+    driverId: number,
+  ): Promise<TripResponseDto> {
+    const trip = await this.tripRepository.findOne({
+      where: { trip_id: tripId, assigned_driver_id: driverId },
+      relations: ['assignedDriver', 'vehicle', 'createdByDispatcher'],
+    });
+
+    if (!trip) {
+      throw new NotFoundException('Trip not found or not assigned to you');
+    }
+
+    const trackPolyline = await this.getTrackPolyline(tripId);
+    return TripMapper.toDto(trip, trackPolyline);
+  }
+
+  async startTripByDriver(
+    tripId: number,
+    driverId: number,
+  ): Promise<TripResponseDto> {
+    const trip = await this.getTripByDriver(tripId, driverId);
+    await this.performStartTrip(trip);
+    return this.findOneForDriver(tripId, driverId);
+  }
+
+  async endTripByDriver(
+    tripId: number,
+    driverId: number,
+  ): Promise<TripResponseDto> {
+    const trip = await this.getTripByDriver(tripId, driverId);
+    await this.performEndTrip(trip);
+    return this.findOneForDriver(tripId, driverId);
   }
 }
