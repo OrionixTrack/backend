@@ -2,14 +2,16 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Brackets } from 'typeorm';
+import { Repository, Brackets, IsNull, In } from 'typeorm';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { EmployeeResponseDto } from './dto/employee-response.dto';
 import { EmployeeQueryDto } from './dto/employee-query.dto';
-import { CompanyOwner, Dispatcher, Driver } from '../../common/entities';
+import { CompanyOwner, Dispatcher, Driver, Trip } from '../../common/entities';
 import { UpdateOwnerProfileDto } from '../dto/update-owner-profile.dto';
+import { TripStatus } from '../../common/types/trip-status';
 
 @Injectable()
 export class EmployeeManagementService {
@@ -20,6 +22,8 @@ export class EmployeeManagementService {
     private dispatcherRepository: Repository<Dispatcher>,
     @InjectRepository(CompanyOwner)
     private companyOwnerRepository: Repository<CompanyOwner>,
+    @InjectRepository(Trip)
+    private tripRepository: Repository<Trip>,
   ) {}
 
   async getDriversByCompany(
@@ -30,7 +34,8 @@ export class EmployeeManagementService {
 
     const queryBuilder = this.driverRepository
       .createQueryBuilder('driver')
-      .where('driver.company_id = :companyId', { companyId });
+      .where('driver.company_id = :companyId', { companyId })
+      .andWhere('driver.deleted_at IS NULL');
 
     if (search) {
       queryBuilder.andWhere(
@@ -63,7 +68,8 @@ export class EmployeeManagementService {
 
     const queryBuilder = this.dispatcherRepository
       .createQueryBuilder('dispatcher')
-      .where('dispatcher.company_id = :companyId', { companyId });
+      .where('dispatcher.company_id = :companyId', { companyId })
+      .andWhere('dispatcher.deleted_at IS NULL');
 
     if (search) {
       queryBuilder.andWhere(
@@ -138,14 +144,31 @@ export class EmployeeManagementService {
 
   async removeDriver(driverId: number, companyId: number): Promise<void> {
     const driver = await this.driverRepository.findOne({
-      where: { driver_id: driverId, company_id: companyId },
+      where: {
+        driver_id: driverId,
+        company_id: companyId,
+        deleted_at: IsNull(),
+      },
     });
 
     if (!driver) {
       throw new NotFoundException('Driver not found');
     }
 
-    await this.driverRepository.delete({ driver_id: driverId });
+    const hasFutureTrips = await this.tripRepository.exists({
+      where: {
+        assigned_driver_id: driverId,
+        status: In([TripStatus.PLANNED, TripStatus.IN_PROGRESS]),
+      },
+    });
+
+    if (hasFutureTrips) {
+      throw new ConflictException(
+        'Cannot remove driver with planned or in-progress trips',
+      );
+    }
+
+    await this.driverRepository.softRemove(driver);
   }
 
   async removeDispatcher(
@@ -153,14 +176,18 @@ export class EmployeeManagementService {
     companyId: number,
   ): Promise<void> {
     const dispatcher = await this.dispatcherRepository.findOne({
-      where: { dispatcher_id: dispatcherId, company_id: companyId },
+      where: {
+        dispatcher_id: dispatcherId,
+        company_id: companyId,
+        deleted_at: IsNull(),
+      },
     });
 
     if (!dispatcher) {
       throw new NotFoundException('Dispatcher not found');
     }
 
-    await this.dispatcherRepository.delete({ dispatcher_id: dispatcherId });
+    await this.dispatcherRepository.softRemove(dispatcher);
   }
 
   async updateOwnerProfile(

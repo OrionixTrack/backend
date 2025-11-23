@@ -1,7 +1,9 @@
 import {
   Column,
   CreateDateColumn,
+  DeleteDateColumn,
   Entity,
+  Index,
   JoinColumn,
   ManyToOne,
   OneToMany,
@@ -12,6 +14,10 @@ import { Trip } from './trip.entity';
 import { UserLanguage } from '../types/UserLanguage';
 
 @Entity('driver')
+@Index('IDX_driver_email_active', ['email'], {
+  unique: true,
+  where: 'deleted_at IS NULL',
+})
 export class Driver {
   @PrimaryGeneratedColumn()
   driver_id: number;
@@ -22,7 +28,7 @@ export class Driver {
   @Column({ type: 'varchar', length: 255 })
   surname: string;
 
-  @Column({ type: 'varchar', length: 255, unique: true })
+  @Column({ type: 'varchar', length: 255 })
   email: string;
 
   @Column({ type: 'varchar' })
@@ -47,4 +53,7 @@ export class Driver {
     default: UserLanguage.ENGLISH,
   })
   language: UserLanguage;
+
+  @DeleteDateColumn({ type: 'timestamp', nullable: true })
+  deleted_at?: Date;
 }

@@ -4,19 +4,24 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, Not, Repository } from 'typeorm';
-import { Vehicle } from '../../common/entities';
+import { Brackets, In, Not, Repository } from 'typeorm';
+import { Tracker, Trip, Vehicle } from '../../common/entities';
 import { CreateVehicleDto } from './dto/create-vehicle.dto';
 import { UpdateVehicleDto } from './dto/update-vehicle.dto';
 import { VehicleResponseDto } from './dto/vehicle-response.dto';
 import { VehicleMapper } from './vehicle.mapper';
 import { VehicleQueryDto } from './dto/vehicle-query.dto';
+import { TripStatus } from '../../common/types/trip-status';
 
 @Injectable()
 export class VehicleService {
   constructor(
     @InjectRepository(Vehicle)
     private vehicleRepository: Repository<Vehicle>,
+    @InjectRepository(Trip)
+    private tripRepository: Repository<Trip>,
+    @InjectRepository(Tracker)
+    private trackerRepository: Repository<Tracker>,
   ) {}
 
   async findAll(
@@ -134,6 +139,29 @@ export class VehicleService {
     if (!vehicle) {
       throw new NotFoundException('Vehicle not found');
     }
+
+    const hasFutureTrips = await this.tripRepository.exists({
+      where: {
+        vehicle_id: id,
+        status: In([TripStatus.PLANNED, TripStatus.IN_PROGRESS]),
+      },
+    });
+
+    if (hasFutureTrips) {
+      throw new ConflictException(
+        'Cannot remove vehicle with planned or in-progress trips',
+      );
+    }
+
+    await this.trackerRepository.update(
+      { vehicle_id: id },
+      { vehicle_id: undefined },
+    );
+
+    await this.tripRepository.update(
+      { vehicle_id: id },
+      { vehicle_id: undefined },
+    );
 
     await this.vehicleRepository.remove(vehicle);
   }
