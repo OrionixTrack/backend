@@ -5,6 +5,9 @@ export class TrackingChannelResponseDto {
   id: number;
 
   @ApiProperty()
+  publicToken: string;
+
+  @ApiProperty()
   name: string;
 
   @ApiProperty()

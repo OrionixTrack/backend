@@ -67,7 +67,7 @@ export class DispatcherTrackingChannelService {
       }
     }
 
-    channel.assigned_trip_id = tripId ?? undefined;
+    channel.assigned_trip_id = tripId;
     const updatedChannel = await this.trackingChannelRepository.save(channel);
 
     return TrackingChannelMapper.toDto(updatedChannel);

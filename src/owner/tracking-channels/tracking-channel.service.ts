@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { nanoid } from 'nanoid';
 import { TrackingChannel, Trip } from '../../common/entities';
 import { CreateTrackingChannelDto } from './dto/create-tracking-channel.dto';
 import { UpdateTrackingChannelDto } from './dto/update-tracking-channel.dto';
@@ -74,6 +75,7 @@ export class TrackingChannelService {
       name: createTrackingChannelDto.name,
       assigned_trip_id: createTrackingChannelDto.assigned_trip_id,
       company_id: companyId,
+      public_token: nanoid(),
     });
 
     const savedChannel = await this.trackingChannelRepository.save(channel);
@@ -106,10 +108,9 @@ export class TrackingChannelService {
 
     channel.name = updateTrackingChannelDto.name;
     channel.assigned_trip_id =
-      updateTrackingChannelDto.assigned_trip_id === null
-        ? undefined
-        : (updateTrackingChannelDto.assigned_trip_id ??
-          channel.assigned_trip_id);
+      updateTrackingChannelDto.assigned_trip_id === undefined
+        ? channel.assigned_trip_id
+        : updateTrackingChannelDto.assigned_trip_id;
 
     const updatedChannel = await this.trackingChannelRepository.save(channel);
 
