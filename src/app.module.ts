@@ -11,6 +11,7 @@ import { TripModule } from './trip/trip.module';
 import { PublicModule } from './public/public.module';
 import { IotModule } from './iot/iot.module';
 import { RealtimeModule } from './realtime/realtime.module';
+import { MapModule } from './map';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { RealtimeModule } from './realtime/realtime.module';
     PublicModule,
     IotModule,
     RealtimeModule,
+    MapModule,
   ],
 })
 export class AppModule {}

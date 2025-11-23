@@ -174,6 +174,7 @@ export class MqttClientService implements OnModuleInit, OnModuleDestroy {
 
         this.realtimeGateway.broadcastTelemetry(
           result.tripId,
+          result.companyId,
           channelTokens,
           telemetryUpdate,
         );

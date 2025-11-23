@@ -1,6 +1,7 @@
 import {
   Column,
   Entity,
+  Index,
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
@@ -8,6 +9,7 @@ import {
 import { Trip } from './trip.entity';
 
 @Entity('sensor_data')
+@Index('idx_sensor_data_trip_time', ['trip_id', 'datetime'])
 export class SensorData {
   @PrimaryGeneratedColumn()
   sensor_data_id: number;

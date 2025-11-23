@@ -18,6 +18,7 @@ import {
   TripStatusUpdateDto,
   SubscribeChannelDto,
   SubscribeTripDto,
+  SubscribeCompanyDto,
 } from './dto';
 
 const IncomingEvents = {
@@ -26,6 +27,8 @@ const IncomingEvents = {
   CHANNEL_REASSIGNED: 'channel:reassigned',
   SUBSCRIBE_TRIP: 'subscribe:trip',
   UNSUBSCRIBE_TRIP: 'unsubscribe:trip',
+  SUBSCRIBE_COMPANY: 'subscribe:company',
+  UNSUBSCRIBE_COMPANY: 'unsubscribe:company',
 } as const;
 
 const OutgoingEvents = {
@@ -37,6 +40,7 @@ const OutgoingEvents = {
 const Rooms = {
   CHANNEL: (token: string) => `channel:${token}`,
   TRIP: (tripId: number) => `trip:${tripId}`,
+  COMPANY: (companyId: number) => `company:${companyId}`,
 } as const;
 
 const INVALID_PAYLOAD = 'Invalid payload';
@@ -173,13 +177,80 @@ export class RealtimeGateway
     this.logger.log(`Client ${client.id} unsubscribed from trip ${dto.tripId}`);
   }
 
+  @SubscribeMessage(IncomingEvents.SUBSCRIBE_COMPANY)
+  async handleSubscribeCompany(
+    @MessageBody() payload: unknown,
+    @ConnectedSocket() client: Socket,
+  ): Promise<void> {
+    const dto = await this.validatePayload(SubscribeCompanyDto, payload);
+    if (!dto) {
+      return this.emitError(
+        client,
+        IncomingEvents.SUBSCRIBE_COMPANY,
+        INVALID_PAYLOAD,
+      );
+    }
+
+    const authToken = this.extractAuthToken(client);
+    if (!authToken) {
+      return this.emitError(
+        client,
+        IncomingEvents.SUBSCRIBE_COMPANY,
+        'Authorization required',
+      );
+    }
+
+    const result = this.realtimeService.validateCompanySubscription(
+      authToken,
+      dto.companyId,
+    );
+
+    if (!result.success) {
+      return this.emitError(
+        client,
+        IncomingEvents.SUBSCRIBE_COMPANY,
+        result.error,
+      );
+    }
+
+    await client.join(Rooms.COMPANY(dto.companyId));
+    this.logger.log(
+      `Client ${client.id} subscribed to company ${dto.companyId}`,
+    );
+  }
+
+  @SubscribeMessage(IncomingEvents.UNSUBSCRIBE_COMPANY)
+  async handleUnsubscribeCompany(
+    @MessageBody() payload: unknown,
+    @ConnectedSocket() client: Socket,
+  ): Promise<void> {
+    const dto = await this.validatePayload(SubscribeCompanyDto, payload);
+    if (!dto) {
+      return this.emitError(
+        client,
+        IncomingEvents.UNSUBSCRIBE_COMPANY,
+        INVALID_PAYLOAD,
+      );
+    }
+
+    await client.leave(Rooms.COMPANY(dto.companyId));
+    this.logger.log(
+      `Client ${client.id} unsubscribed from company ${dto.companyId}`,
+    );
+  }
+
   broadcastTelemetry(
     tripId: number,
+    companyId: number,
     channelTokens: string[],
     telemetry: TelemetryUpdateDto,
   ): void {
     this.server
       .to(Rooms.TRIP(tripId))
+      .emit(OutgoingEvents.TELEMETRY_UPDATE, telemetry);
+
+    this.server
+      .to(Rooms.COMPANY(companyId))
       .emit(OutgoingEvents.TELEMETRY_UPDATE, telemetry);
 
     const positionUpdate: PositionUpdateDto = {
@@ -199,12 +270,18 @@ export class RealtimeGateway
 
   broadcastTripStatusChange(
     tripId: number,
+    companyId: number,
     channelTokens: string[],
     statusUpdate: TripStatusUpdateDto,
   ): void {
     this.server
       .to(Rooms.TRIP(tripId))
       .emit(OutgoingEvents.TRIP_STATUS, statusUpdate);
+
+    this.server
+      .to(Rooms.COMPANY(companyId))
+      .emit(OutgoingEvents.TRIP_STATUS, statusUpdate);
+
     this.emitToChannels(
       channelTokens,
       OutgoingEvents.TRIP_STATUS,

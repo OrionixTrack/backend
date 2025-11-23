@@ -286,7 +286,7 @@ export class TripService {
       await this.iotService.invalidateVehicleTripCache(trip.vehicle_id);
     }
 
-    await this.broadcastTripStatus(tripId, TripStatus.CANCELLED);
+    await this.broadcastTripStatus(tripId, companyId, TripStatus.CANCELLED);
 
     return this.findOne(tripId, companyId);
   }
@@ -391,7 +391,11 @@ export class TripService {
     trip.actual_start_datetime = new Date();
     await this.tripRepository.save(trip);
 
-    await this.broadcastTripStatus(trip.trip_id, TripStatus.IN_PROGRESS);
+    await this.broadcastTripStatus(
+      trip.trip_id,
+      trip.company_id,
+      TripStatus.IN_PROGRESS,
+    );
   }
 
   private async validateNoActiveTrips(trip: Trip): Promise<void> {
@@ -437,19 +441,29 @@ export class TripService {
       await this.iotService.invalidateVehicleTripCache(trip.vehicle_id);
     }
 
-    await this.broadcastTripStatus(trip.trip_id, TripStatus.COMPLETED);
+    await this.broadcastTripStatus(
+      trip.trip_id,
+      trip.company_id,
+      TripStatus.COMPLETED,
+    );
   }
 
   private async broadcastTripStatus(
     tripId: number,
+    companyId: number,
     status: TripStatus,
   ): Promise<void> {
     const channelTokens =
       await this.iotService.getChannelTokensByTripId(tripId);
-    this.realtimeGateway.broadcastTripStatusChange(tripId, channelTokens, {
+    this.realtimeGateway.broadcastTripStatusChange(
       tripId,
-      status,
-    });
+      companyId,
+      channelTokens,
+      {
+        tripId,
+        status,
+      },
+    );
   }
 
   private applySearchFilter(

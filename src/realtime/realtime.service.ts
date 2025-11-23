@@ -74,4 +74,26 @@ export class RealtimeService {
 
     return { success: true, data: { tripId } };
   }
+
+  validateCompanySubscription(
+    authToken: string,
+    companyId: number,
+  ): Result<{ companyId: number }> {
+    let payload: JwtPayload;
+    try {
+      payload = this.jwtService.verify<JwtPayload>(authToken);
+    } catch {
+      return { success: false, error: 'Invalid token' };
+    }
+
+    if (
+      (payload.role !== UserRole.COMPANY_OWNER &&
+        payload.role !== UserRole.DISPATCHER) ||
+      payload.companyId !== companyId
+    ) {
+      return { success: false, error: 'Access denied' };
+    }
+
+    return { success: true, data: { companyId } };
+  }
 }

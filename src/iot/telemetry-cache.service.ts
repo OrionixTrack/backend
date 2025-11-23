@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 import { REDIS_KEYS, REDIS_TTL_SECONDS } from './iot.constants';
-import { CachedTripMapping } from './types/cached-position';
+import { CachedTripMapping } from './types/cached-trip-mapping';
 
 @Injectable()
 export class TelemetryCacheService {

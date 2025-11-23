@@ -12,8 +12,8 @@ import {
   Vehicle,
   Tracker,
   TrackingChannel,
-  Trip,
   Invitation,
+  Trip,
 } from '../common/entities';
 import { EmailModule } from '../email/email.module';
 import type { StringValue } from 'ms';

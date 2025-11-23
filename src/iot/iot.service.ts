@@ -14,12 +14,8 @@ import { TripStatus } from '../common/types/trip-status';
 import { TelemetryDto } from './dto';
 import { MqttAuthResult } from './types/mqtt-auth-result';
 import { TelemetryCacheService } from './telemetry-cache.service';
-import { TRACKER_USERNAME_PATTERN, MQTT_TOPICS } from './iot.constants';
-
-export interface SaveTelemetryResult {
-  sensorData: SensorData;
-  tripId: number;
-}
+import { MQTT_TOPICS, TRACKER_USERNAME_PATTERN } from './iot.constants';
+import { SaveTelemetryResult } from './types/save-telemetry-result';
 
 @Injectable()
 export class IotService {
@@ -121,13 +117,13 @@ export class IotService {
     });
   }
 
-  async getActiveTripId(
+  async getActiveTripData(
     trackerId: number,
     vehicleId: number,
-  ): Promise<number | null> {
+  ): Promise<{ tripId: number; companyId: number } | null> {
     const cached = await this.cacheService.getTripMapping(trackerId);
-    if (cached && cached.vehicleId === vehicleId) {
-      return cached.tripId;
+    if (cached && cached.vehicleId === vehicleId && cached.companyId) {
+      return { tripId: cached.tripId, companyId: cached.companyId };
     }
 
     const trip = await this.findActiveTrip(vehicleId);
@@ -138,9 +134,10 @@ export class IotService {
     await this.cacheService.setTripMapping(trackerId, {
       vehicleId,
       tripId: trip.trip_id,
+      companyId: trip.company_id,
     });
 
-    return trip.trip_id;
+    return { tripId: trip.trip_id, companyId: trip.company_id };
   }
 
   async saveTelemetry(
@@ -151,12 +148,12 @@ export class IotService {
       return null;
     }
 
-    const tripId = await this.getActiveTripId(
+    const tripData = await this.getActiveTripData(
       tracker.tracker_id,
       tracker.vehicle_id,
     );
 
-    if (!tripId) {
+    if (!tripData) {
       return null;
     }
 
@@ -165,7 +162,7 @@ export class IotService {
       : new Date();
 
     const sensorData = this.sensorDataRepository.create({
-      trip_id: tripId,
+      trip_id: tripData.tripId,
       latitude: telemetry.latitude,
       longitude: telemetry.longitude,
       speed: telemetry.speed,
@@ -175,7 +172,11 @@ export class IotService {
     });
 
     const saved = await this.sensorDataRepository.save(sensorData);
-    return { sensorData: saved, tripId };
+    return {
+      sensorData: saved,
+      tripId: tripData.tripId,
+      companyId: tripData.companyId,
+    };
   }
 
   async getChannelTokensByTripId(tripId: number): Promise<string[]> {
