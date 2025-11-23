@@ -25,6 +25,7 @@ import { UserRole } from '../auth/types/user-role.enum';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { TripService } from '../trip/trip.service';
 import { TripResponseDto } from '../trip/dto/trip-response.dto';
+import { TripStatsResponseDto } from '../trip/dto/trip-stats.dto';
 import { CreateTripDto } from '../trip/dto/create-trip.dto';
 import { UpdateTripDto } from '../trip/dto/update-trip.dto';
 import { AssignDriverDto } from './dto/assign-driver.dto';
@@ -145,5 +146,15 @@ export class DispatcherTripController {
     @CurrentUser() user: CurrentUserData,
   ): Promise<TripResponseDto> {
     return this.tripService.cancelTrip(id, user.companyId);
+  }
+
+  @Get(':id/stats')
+  @ApiOperation({ summary: 'Get trip statistics and chart data' })
+  @ApiParam({ name: 'id', description: 'Trip ID' })
+  async getStats(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: CurrentUserData,
+  ): Promise<TripStatsResponseDto> {
+    return this.tripService.getStats(id, user.companyId);
   }
 }

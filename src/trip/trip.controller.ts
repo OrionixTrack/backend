@@ -15,6 +15,7 @@ import type { CurrentUserData } from '../auth/decorators/current-user.decorator'
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { TripService } from './trip.service';
 import { TripResponseDto } from './dto/trip-response.dto';
+import { TripStatsResponseDto } from './dto/trip-stats.dto';
 
 @ApiTags('Trips')
 @ApiBearerAuth('JWT-auth')
@@ -40,5 +41,14 @@ export class TripController {
     @CurrentUser() user: CurrentUserData,
   ): Promise<TripResponseDto> {
     return this.tripService.findOne(id, user.companyId);
+  }
+
+  @Get(':id/stats')
+  @ApiOperation({ summary: 'Get trip statistics and chart data' })
+  async getStats(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: CurrentUserData,
+  ): Promise<TripStatsResponseDto> {
+    return this.tripService.getStats(id, user.companyId);
   }
 }

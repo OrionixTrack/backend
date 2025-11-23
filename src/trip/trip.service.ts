@@ -19,6 +19,8 @@ import { UpdateTripDto } from './dto/update-trip.dto';
 import { IotService } from '../iot/iot.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { DispatcherTripQueryDto } from './dto/dispatcher-trip-query.dto';
+import { ChartSeriesPoint, TripStatsResponseDto } from './dto/trip-stats.dto';
+import { TRIP_STATS_CHART_POINT_COUNT } from './trip.constants';
 
 @Injectable()
 export class TripService {
@@ -571,5 +573,180 @@ export class TripService {
     const trip = await this.getTripByDriver(tripId, driverId);
     await this.performEndTrip(trip);
     return this.findOneForDriver(tripId, driverId);
+  }
+
+  async getStats(
+    tripId: number,
+    companyId: number,
+  ): Promise<TripStatsResponseDto> {
+    const trip = await this.tripRepository.findOne({
+      where: { trip_id: tripId, company_id: companyId },
+      select: ['trip_id'],
+    });
+
+    if (!trip) {
+      throw new NotFoundException('Trip not found');
+    }
+
+    const [statsRaw, rawData] = await Promise.all([
+      this.sensorDataRepository
+        .createQueryBuilder('sd')
+        .select([
+          'MIN(sd.temperature)::float as temp_min',
+          'MAX(sd.temperature)::float as temp_max',
+          'AVG(sd.temperature)::float as temp_avg',
+          'MIN(sd.humidity)::float as humid_min',
+          'MAX(sd.humidity)::float as humid_max',
+          'AVG(sd.humidity)::float as humid_avg',
+          'MIN(sd.speed)::float as speed_min',
+          'MAX(sd.speed)::float as speed_max',
+          'AVG(sd.speed)::float as speed_avg',
+          'COUNT(sd.sensor_data_id)::int as total_points',
+        ])
+        .where('sd.trip_id = :tripId', { tripId })
+        .getRawOne<{
+          temp_min: number;
+          temp_max: number;
+          temp_avg: number;
+          humid_min: number;
+          humid_max: number;
+          humid_avg: number;
+          speed_min: number;
+          speed_max: number;
+          speed_avg: number;
+          total_points: number;
+        }>(),
+
+      this.sensorDataRepository
+        .createQueryBuilder('sd')
+        .select([
+          'sd.datetime as datetime',
+          'sd.temperature::float as temperature',
+          'sd.humidity::float as humidity',
+          'sd.speed::float as speed',
+        ])
+        .where('sd.trip_id = :tripId', { tripId })
+        .orderBy('sd.datetime', 'ASC')
+        .getRawMany<{
+          datetime: string;
+          temperature: number | null;
+          humidity: number | null;
+          speed: number | null;
+        }>(),
+    ]);
+
+    if (!statsRaw || statsRaw.total_points === 0) {
+      return {
+        tripId,
+        totalPoints: 0,
+      };
+    }
+
+    const speedRaw: ChartSeriesPoint[] = [];
+    const tempRaw: ChartSeriesPoint[] = [];
+    const humidRaw: ChartSeriesPoint[] = [];
+
+    for (const row of rawData) {
+      const datetime = new Date(row.datetime);
+
+      if (row.speed != null) {
+        speedRaw.push({ datetime, value: row.speed });
+      }
+
+      if (row.temperature != null) {
+        tempRaw.push({ datetime, value: row.temperature });
+      }
+
+      if (row.humidity != null) {
+        humidRaw.push({ datetime, value: row.humidity });
+      }
+    }
+
+    const formatStat = (avg: number | undefined, min: number, max: number) =>
+      avg ? { min, max, avg: Math.round(avg * 100) / 100 } : undefined;
+
+    return {
+      tripId,
+      totalPoints: statsRaw?.total_points || 0,
+
+      temperature: formatStat(
+        statsRaw?.temp_avg,
+        statsRaw?.temp_min,
+        statsRaw?.temp_max,
+      ),
+      humidity: formatStat(
+        statsRaw?.humid_avg,
+        statsRaw?.humid_min,
+        statsRaw?.humid_max,
+      ),
+      speed: formatStat(
+        statsRaw?.speed_avg,
+        statsRaw?.speed_min,
+        statsRaw?.speed_max,
+      ),
+
+      speedChart:
+        speedRaw.length > 0
+          ? this.downsampleMetric(speedRaw, TRIP_STATS_CHART_POINT_COUNT)
+          : undefined,
+
+      temperatureChart:
+        tempRaw.length > 0
+          ? this.downsampleMetric(tempRaw, TRIP_STATS_CHART_POINT_COUNT)
+          : undefined,
+
+      humidityChart:
+        humidRaw.length > 0
+          ? this.downsampleMetric(humidRaw, TRIP_STATS_CHART_POINT_COUNT)
+          : undefined,
+    };
+  }
+
+  private downsampleMetric(
+    data: ChartSeriesPoint[],
+    targetPoints: number,
+  ): ChartSeriesPoint[] {
+    if (data.length <= targetPoints) {
+      return data;
+    }
+
+    const blockSize = data.length / targetPoints;
+    const sampled: ChartSeriesPoint[] = [];
+
+    sampled.push(data[0]);
+
+    for (let i = 0; i < targetPoints - 2; i++) {
+      const start = Math.floor((i + 1) * blockSize);
+      const end = Math.floor((i + 2) * blockSize);
+
+      const chunk = data.slice(start, end);
+
+      if (chunk.length === 0) {
+        continue;
+      }
+
+      let minPoint = chunk[0];
+      let maxPoint = chunk[0];
+      let sum = 0;
+
+      for (const p of chunk) {
+        sum += p.value;
+        if (p.value < minPoint.value) minPoint = p;
+        if (p.value > maxPoint.value) maxPoint = p;
+      }
+
+      const avg = sum / chunk.length;
+
+      const maxDeviation = Math.abs(maxPoint.value - avg);
+      const minDeviation = Math.abs(minPoint.value - avg);
+
+      const bestPoint = maxDeviation >= minDeviation ? maxPoint : minPoint;
+
+      sampled.push(bestPoint);
+    }
+
+    sampled.push(data[data.length - 1]);
+
+    return sampled;
   }
 }
