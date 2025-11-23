@@ -10,6 +10,7 @@ import { DriverModule } from './driver/driver.module';
 import { TripModule } from './trip/trip.module';
 import { PublicModule } from './public/public.module';
 import { IotModule } from './iot/iot.module';
+import { RealtimeModule } from './realtime/realtime.module';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { IotModule } from './iot/iot.module';
     TripModule,
     PublicModule,
     IotModule,
+    RealtimeModule,
   ],
 })
 export class AppModule {}

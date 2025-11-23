@@ -8,7 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Repository } from 'typeorm';
 import * as polyline from '@mapbox/polyline';
 import { Driver, SensorData, Trip, Vehicle } from '../common/entities';
-import { TripQueryDto, TripSortField } from './dto/trip-query.dto';
+import { TripSortField } from './dto/trip-query.dto';
 import { DriverTripQueryDto } from '../driver/dto/driver-trip-query.dto';
 import { ActiveTripResponseDto } from '../driver/dto/active-trip-response.dto';
 import { TripResponseDto } from './dto/trip-response.dto';
@@ -17,6 +17,8 @@ import { TripStatus } from '../common/types/trip-status';
 import { CreateTripDto } from './dto/create-trip.dto';
 import { UpdateTripDto } from './dto/update-trip.dto';
 import { IotService } from '../iot/iot.service';
+import { RealtimeGateway } from '../realtime/realtime.gateway';
+import { DispatcherTripQueryDto } from './dto/dispatcher-trip-query.dto';
 
 @Injectable()
 export class TripService {
@@ -30,11 +32,12 @@ export class TripService {
     @InjectRepository(Vehicle)
     private vehicleRepository: Repository<Vehicle>,
     private readonly iotService: IotService,
+    private readonly realtimeGateway: RealtimeGateway,
   ) {}
 
   async findAll(
     companyId: number,
-    query: TripQueryDto,
+    query: DispatcherTripQueryDto,
     dispatcherId?: number,
   ): Promise<TripResponseDto[]> {
     const qb = this.tripRepository
@@ -77,9 +80,19 @@ export class TripService {
       throw new NotFoundException('Trip not found');
     }
 
-    const trackPolyline = await this.getTrackPolyline(tripId);
+    const [trackPolyline, currentTelemetry] = await Promise.all([
+      this.getTrackPolyline(tripId),
+      this.getLatestTelemetry(tripId),
+    ]);
 
-    return TripMapper.toDto(trip, trackPolyline);
+    return TripMapper.toDto(trip, trackPolyline, currentTelemetry);
+  }
+
+  private async getLatestTelemetry(tripId: number): Promise<SensorData | null> {
+    return this.sensorDataRepository.findOne({
+      where: { trip_id: tripId },
+      order: { datetime: 'DESC' },
+    });
   }
 
   async create(
@@ -271,6 +284,8 @@ export class TripService {
       await this.iotService.invalidateVehicleTripCache(trip.vehicle_id);
     }
 
+    await this.broadcastTripStatus(tripId, TripStatus.CANCELLED);
+
     return this.findOne(tripId, companyId);
   }
 
@@ -368,9 +383,43 @@ export class TripService {
       );
     }
 
+    await this.validateNoActiveTrips(trip);
+
     trip.status = TripStatus.IN_PROGRESS;
     trip.actual_start_datetime = new Date();
     await this.tripRepository.save(trip);
+
+    await this.broadcastTripStatus(trip.trip_id, TripStatus.IN_PROGRESS);
+  }
+
+  private async validateNoActiveTrips(trip: Trip): Promise<void> {
+    if (trip.assigned_driver_id) {
+      const driverActiveTrip = await this.tripRepository.findOne({
+        where: {
+          assigned_driver_id: trip.assigned_driver_id,
+          status: TripStatus.IN_PROGRESS,
+        },
+      });
+
+      if (driverActiveTrip) {
+        throw new BadRequestException(
+          'Driver already has an active trip in progress',
+        );
+      }
+    }
+
+    const vehicleActiveTrip = await this.tripRepository.findOne({
+      where: {
+        vehicle_id: trip.vehicle_id,
+        status: TripStatus.IN_PROGRESS,
+      },
+    });
+
+    if (vehicleActiveTrip) {
+      throw new BadRequestException(
+        'Vehicle already has an active trip in progress',
+      );
+    }
   }
 
   private async performEndTrip(trip: Trip): Promise<void> {
@@ -385,6 +434,20 @@ export class TripService {
     if (trip.vehicle_id) {
       await this.iotService.invalidateVehicleTripCache(trip.vehicle_id);
     }
+
+    await this.broadcastTripStatus(trip.trip_id, TripStatus.COMPLETED);
+  }
+
+  private async broadcastTripStatus(
+    tripId: number,
+    status: TripStatus,
+  ): Promise<void> {
+    const channelTokens =
+      await this.iotService.getChannelTokensByTripId(tripId);
+    this.realtimeGateway.broadcastTripStatusChange(tripId, channelTokens, {
+      tripId,
+      status,
+    });
   }
 
   private applySearchFilter(
@@ -463,8 +526,13 @@ export class TripService {
       return { activeTrip: null };
     }
 
-    const trackPolyline = await this.getTrackPolyline(trip.trip_id);
-    return { activeTrip: TripMapper.toDto(trip, trackPolyline) };
+    const [trackPolyline, currentTelemetry] = await Promise.all([
+      this.getTrackPolyline(trip.trip_id),
+      this.getLatestTelemetry(trip.trip_id),
+    ]);
+    return {
+      activeTrip: TripMapper.toDto(trip, trackPolyline, currentTelemetry),
+    };
   }
 
   async findOneForDriver(
@@ -480,8 +548,11 @@ export class TripService {
       throw new NotFoundException('Trip not found or not assigned to you');
     }
 
-    const trackPolyline = await this.getTrackPolyline(tripId);
-    return TripMapper.toDto(trip, trackPolyline);
+    const [trackPolyline, currentTelemetry] = await Promise.all([
+      this.getTrackPolyline(tripId),
+      this.getLatestTelemetry(tripId),
+    ]);
+    return TripMapper.toDto(trip, trackPolyline, currentTelemetry);
   }
 
   async startTripByDriver(

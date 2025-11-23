@@ -24,12 +24,12 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../auth/types/user-role.enum';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { TripService } from '../trip/trip.service';
-import { TripQueryDto } from '../trip/dto/trip-query.dto';
 import { TripResponseDto } from '../trip/dto/trip-response.dto';
 import { CreateTripDto } from '../trip/dto/create-trip.dto';
 import { UpdateTripDto } from '../trip/dto/update-trip.dto';
 import { AssignDriverDto } from './dto/assign-driver.dto';
 import { AssignVehicleDto } from './dto/assign-vehicle.dto';
+import { DispatcherTripQueryDto } from '../trip/dto/dispatcher-trip-query.dto';
 
 @ApiTags('Dispatcher - Trips')
 @ApiBearerAuth('JWT-auth')
@@ -41,12 +41,11 @@ export class DispatcherTripController {
 
   @Get()
   @ApiOperation({
-    summary:
-      'Get all trips with filtering (use createdByMe=true for own trips)',
+    summary: 'Get all trips with filtering',
   })
   async findAll(
     @CurrentUser() user: CurrentUserData,
-    @Query() query: TripQueryDto,
+    @Query() query: DispatcherTripQueryDto,
   ): Promise<TripResponseDto[]> {
     return this.tripService.findAll(user.companyId, query, user.userId);
   }

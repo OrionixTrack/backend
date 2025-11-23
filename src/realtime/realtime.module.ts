@@ -1,17 +1,16 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { Driver, SensorData, Trip, Vehicle } from '../common/entities';
-import type { StringValue } from 'ms';
-import { TripController } from './trip.controller';
-import { TripService } from './trip.service';
+import { TrackingChannel, Trip } from '../common/entities';
+import { RealtimeGateway } from './realtime.gateway';
+import { RealtimeService } from './realtime.service';
 import { IotModule } from '../iot/iot.module';
-import { RealtimeModule } from '../realtime/realtime.module';
+import type { StringValue } from 'ms';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Trip, SensorData, Driver, Vehicle]),
+    TypeOrmModule.forFeature([TrackingChannel, Trip]),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -22,11 +21,9 @@ import { RealtimeModule } from '../realtime/realtime.module';
         },
       }),
     }),
-    IotModule,
-    RealtimeModule,
+    forwardRef(() => IotModule),
   ],
-  controllers: [TripController],
-  providers: [TripService],
-  exports: [TripService],
+  providers: [RealtimeGateway, RealtimeService],
+  exports: [RealtimeGateway],
 })
-export class TripModule {}
+export class RealtimeModule {}

@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { TripUserDto } from './trip-user.dto';
 import { TripVehicleDto } from './trip-vehicle.dto';
 import { TripStatus } from '../../common/types/trip-status';
+import { CurrentTelemetryDto } from './current-telemetry.dto';
 
 export class TripResponseDto {
   @ApiProperty()
@@ -59,4 +60,7 @@ export class TripResponseDto {
     nullable: true,
   })
   trackPolyline?: string | undefined;
+
+  @ApiPropertyOptional({ type: CurrentTelemetryDto, nullable: true })
+  currentTelemetry?: CurrentTelemetryDto | undefined;
 }

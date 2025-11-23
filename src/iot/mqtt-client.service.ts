@@ -3,6 +3,8 @@ import {
   Logger,
   OnModuleInit,
   OnModuleDestroy,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -18,6 +20,8 @@ import {
   MQTT_CONFIG,
   TELEMETRY_TOPIC_PATTERN,
 } from './iot.constants';
+import { RealtimeGateway } from '../realtime/realtime.gateway';
+import { TelemetryUpdateDto } from '../realtime/dto';
 
 @Injectable()
 export class MqttClientService implements OnModuleInit, OnModuleDestroy {
@@ -27,6 +31,8 @@ export class MqttClientService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly configService: ConfigService,
     private readonly iotService: IotService,
+    @Inject(forwardRef(() => RealtimeGateway))
+    private readonly realtimeGateway: RealtimeGateway,
     @InjectRepository(Tracker)
     private trackerRepository: Repository<Tracker>,
   ) {}
@@ -143,7 +149,35 @@ export class MqttClientService implements OnModuleInit, OnModuleDestroy {
         return;
       }
 
-      await this.iotService.saveTelemetry(tracker, data);
+      const result = await this.iotService.saveTelemetry(tracker, data);
+
+      if (result) {
+        const channelTokens = await this.iotService.getChannelTokensByTripId(
+          result.tripId,
+        );
+
+        const telemetryUpdate: TelemetryUpdateDto = {
+          tripId: result.tripId,
+          latitude: Number(result.sensorData.latitude),
+          longitude: Number(result.sensorData.longitude),
+          speed: result.sensorData.speed
+            ? Number(result.sensorData.speed)
+            : undefined,
+          datetime: result.sensorData.datetime,
+          temperature: result.sensorData.temperature
+            ? Number(result.sensorData.temperature)
+            : undefined,
+          humidity: result.sensorData.humidity
+            ? Number(result.sensorData.humidity)
+            : undefined,
+        };
+
+        this.realtimeGateway.broadcastTelemetry(
+          result.tripId,
+          channelTokens,
+          telemetryUpdate,
+        );
+      }
     } catch (error) {
       this.logger.error(
         `Failed to process message from ${topic}: ${(error as Error).message}`,

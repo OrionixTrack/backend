@@ -1,10 +1,12 @@
 import { TripResponseDto } from './dto/trip-response.dto';
-import { Trip } from '../common/entities';
+import { Trip, SensorData } from '../common/entities';
+import { CurrentTelemetryDto } from './dto/current-telemetry.dto';
 
 export class TripMapper {
   static toDto(
     trip: Trip,
     trackPolyline: string | null = null,
+    currentTelemetry: SensorData | null = null,
   ): TripResponseDto {
     return {
       id: trip.trip_id,
@@ -45,6 +47,24 @@ export class TripMapper {
           }
         : undefined,
       trackPolyline: trackPolyline || undefined,
+      currentTelemetry: currentTelemetry
+        ? this.toCurrentTelemetry(currentTelemetry)
+        : undefined,
+    };
+  }
+
+  private static toCurrentTelemetry(
+    sensorData: SensorData,
+  ): CurrentTelemetryDto {
+    return {
+      latitude: Number(sensorData.latitude),
+      longitude: Number(sensorData.longitude),
+      speed: sensorData.speed ? Number(sensorData.speed) : undefined,
+      datetime: sensorData.datetime,
+      temperature: sensorData.temperature
+        ? Number(sensorData.temperature)
+        : undefined,
+      humidity: sensorData.humidity ? Number(sensorData.humidity) : undefined,
     };
   }
 }

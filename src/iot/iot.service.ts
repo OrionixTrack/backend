@@ -3,12 +3,23 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
-import { SensorData, Tracker, Trip, Vehicle } from '../common/entities';
+import {
+  SensorData,
+  Tracker,
+  TrackingChannel,
+  Trip,
+  Vehicle,
+} from '../common/entities';
 import { TripStatus } from '../common/types/trip-status';
 import { TelemetryDto } from './dto';
 import { MqttAuthResult } from './types/mqtt-auth-result';
 import { TelemetryCacheService } from './telemetry-cache.service';
 import { TRACKER_USERNAME_PATTERN, MQTT_TOPICS } from './iot.constants';
+
+export interface SaveTelemetryResult {
+  sensorData: SensorData;
+  tripId: number;
+}
 
 @Injectable()
 export class IotService {
@@ -25,6 +36,8 @@ export class IotService {
     private tripRepository: Repository<Trip>,
     @InjectRepository(Vehicle)
     private vehicleRepository: Repository<Vehicle>,
+    @InjectRepository(TrackingChannel)
+    private trackingChannelRepository: Repository<TrackingChannel>,
   ) {}
 
   async authenticate(
@@ -133,7 +146,7 @@ export class IotService {
   async saveTelemetry(
     tracker: Tracker,
     telemetry: TelemetryDto,
-  ): Promise<SensorData | null> {
+  ): Promise<SaveTelemetryResult | null> {
     if (!tracker.vehicle_id) {
       return null;
     }
@@ -161,7 +174,17 @@ export class IotService {
       humidity: telemetry.humidity,
     });
 
-    return await this.sensorDataRepository.save(sensorData);
+    const saved = await this.sensorDataRepository.save(sensorData);
+    return { sensorData: saved, tripId };
+  }
+
+  async getChannelTokensByTripId(tripId: number): Promise<string[]> {
+    const channels = await this.trackingChannelRepository.find({
+      where: { assigned_trip_id: tripId },
+      select: ['public_token'],
+    });
+
+    return channels.map((c) => c.public_token);
   }
 
   async invalidateVehicleTripCache(vehicleId: number): Promise<void> {
