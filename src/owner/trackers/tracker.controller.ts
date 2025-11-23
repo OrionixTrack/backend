@@ -26,7 +26,10 @@ import { RolesGuard } from '../../auth/guards/roles.guard';
 import { TrackerService } from './tracker.service';
 import { CreateTrackerDto } from './dto/create-tracker.dto';
 import { UpdateTrackerDto } from './dto/update-tracker.dto';
-import { TrackerResponseDto } from './dto/tracker-response.dto';
+import {
+  TrackerResponseDto,
+  TrackerWithTokenResponseDto,
+} from './dto/tracker-response.dto';
 import { TrackerQueryDto } from './dto/tracker-query.dto';
 
 @ApiTags('Trackers')
@@ -61,7 +64,7 @@ export class TrackerController {
   async create(
     @CurrentUser() user: CurrentUserData,
     @Body() createTrackerDto: CreateTrackerDto,
-  ): Promise<TrackerResponseDto> {
+  ): Promise<TrackerWithTokenResponseDto> {
     return this.trackerService.create(user.companyId, createTrackerDto);
   }
 
@@ -93,7 +96,7 @@ export class TrackerController {
   async regenerateToken(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user: CurrentUserData,
-  ): Promise<TrackerResponseDto> {
+  ): Promise<TrackerWithTokenResponseDto> {
     return this.trackerService.regenerateToken(id, user.companyId);
   }
 }

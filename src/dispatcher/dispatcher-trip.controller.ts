@@ -113,7 +113,7 @@ export class DispatcherTripController {
 
   @Post(':id/start')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Start a planned trip (vehicle must be assigned)' })
+  @ApiOperation({ summary: 'Start a planned trip' })
   @ApiParam({ name: 'id', description: 'Trip ID' })
   @ApiResponse({
     status: 400,

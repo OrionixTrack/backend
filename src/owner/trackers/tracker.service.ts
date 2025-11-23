@@ -7,10 +7,14 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { randomBytes } from 'crypto';
+import * as bcrypt from 'bcrypt';
 import { Tracker, Vehicle } from '../../common/entities';
 import { CreateTrackerDto } from './dto/create-tracker.dto';
 import { UpdateTrackerDto } from './dto/update-tracker.dto';
-import { TrackerResponseDto } from './dto/tracker-response.dto';
+import {
+  TrackerResponseDto,
+  TrackerWithTokenResponseDto,
+} from './dto/tracker-response.dto';
 import { TrackerMapper } from './tracker.mapper';
 import { TrackerQueryDto } from './dto/tracker-query.dto';
 
@@ -61,7 +65,7 @@ export class TrackerService {
   async create(
     companyId: number,
     createTrackerDto: CreateTrackerDto,
-  ): Promise<TrackerResponseDto> {
+  ): Promise<TrackerWithTokenResponseDto> {
     if (createTrackerDto.vehicle_id) {
       await this.validateVehicleAssignment(
         createTrackerDto.vehicle_id,
@@ -69,18 +73,19 @@ export class TrackerService {
       );
     }
 
-    const deviceSecretToken = this.generateSecretToken();
+    const plainToken = this.generateSecretToken();
+    const tokenHash = await this.hashToken(plainToken);
 
     const tracker = this.trackerRepository.create({
       name: createTrackerDto.name,
-      device_secret_token: deviceSecretToken,
+      device_secret_token_hash: tokenHash,
       vehicle_id: createTrackerDto.vehicle_id,
       company_id: companyId,
     });
 
     const savedTracker = await this.trackerRepository.save(tracker);
 
-    return TrackerMapper.toDto(savedTracker);
+    return TrackerMapper.toDtoWithToken(savedTracker, plainToken);
   }
 
   async update(
@@ -133,7 +138,7 @@ export class TrackerService {
   async regenerateToken(
     id: number,
     companyId: number,
-  ): Promise<TrackerResponseDto> {
+  ): Promise<TrackerWithTokenResponseDto> {
     const tracker = await this.trackerRepository.findOne({
       where: { tracker_id: id, company_id: companyId },
     });
@@ -142,10 +147,11 @@ export class TrackerService {
       throw new NotFoundException('Tracker not found');
     }
 
-    tracker.device_secret_token = this.generateSecretToken();
+    const plainToken = this.generateSecretToken();
+    tracker.device_secret_token_hash = await this.hashToken(plainToken);
     const updatedTracker = await this.trackerRepository.save(tracker);
 
-    return TrackerMapper.toDto(updatedTracker);
+    return TrackerMapper.toDtoWithToken(updatedTracker, plainToken);
   }
 
   private async validateVehicleAssignment(
@@ -176,5 +182,10 @@ export class TrackerService {
 
   private generateSecretToken(): string {
     return randomBytes(32).toString('hex');
+  }
+
+  private async hashToken(token: string): Promise<string> {
+    const saltRounds = 10;
+    return bcrypt.hash(token, saltRounds);
   }
 }

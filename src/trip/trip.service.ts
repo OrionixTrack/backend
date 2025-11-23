@@ -16,6 +16,7 @@ import { TripMapper } from './trip.mapper';
 import { TripStatus } from '../common/types/trip-status';
 import { CreateTripDto } from './dto/create-trip.dto';
 import { UpdateTripDto } from './dto/update-trip.dto';
+import { IotService } from '../iot/iot.service';
 
 @Injectable()
 export class TripService {
@@ -28,6 +29,7 @@ export class TripService {
     private driverRepository: Repository<Driver>,
     @InjectRepository(Vehicle)
     private vehicleRepository: Repository<Vehicle>,
+    private readonly iotService: IotService,
   ) {}
 
   async findAll(
@@ -265,6 +267,10 @@ export class TripService {
     trip.end_datetime = new Date();
     await this.tripRepository.save(trip);
 
+    if (trip.vehicle_id) {
+      await this.iotService.invalidateVehicleTripCache(trip.vehicle_id);
+    }
+
     return this.findOne(tripId, companyId);
   }
 
@@ -375,6 +381,10 @@ export class TripService {
     trip.status = TripStatus.COMPLETED;
     trip.end_datetime = new Date();
     await this.tripRepository.save(trip);
+
+    if (trip.vehicle_id) {
+      await this.iotService.invalidateVehicleTripCache(trip.vehicle_id);
+    }
   }
 
   private applySearchFilter(

@@ -17,8 +17,8 @@ export class Tracker {
   @Column({ type: 'varchar', length: 255 })
   name: string;
 
-  @Column({ type: 'varchar', unique: true })
-  device_secret_token: string;
+  @Column({ type: 'varchar' })
+  device_secret_token_hash: string;
 
   @Column({ type: 'int', nullable: true })
   vehicle_id?: number;

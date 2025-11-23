@@ -6,6 +6,7 @@ import { Driver, SensorData, Trip, Vehicle } from '../common/entities';
 import type { StringValue } from 'ms';
 import { TripController } from './trip.controller';
 import { TripService } from './trip.service';
+import { IotModule } from '../iot/iot.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { TripService } from './trip.service';
         },
       }),
     }),
+    IotModule,
   ],
   controllers: [TripController],
   providers: [TripService],
