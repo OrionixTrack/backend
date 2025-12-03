@@ -16,9 +16,14 @@ export class TelemetryDto {
   @Min(0)
   speed?: number;
 
-  @IsOptional()
   @IsDateString()
-  datetime?: string;
+  datetime: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(360)
+  bearing?: number;
 
   @IsOptional()
   @IsNumber()

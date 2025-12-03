@@ -20,6 +20,9 @@ export class SensorData {
   @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
   speed?: number;
 
+  @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
+  bearing?: number;
+
   @Column({ type: 'decimal', precision: 10, scale: 7 })
   latitude: number;
 

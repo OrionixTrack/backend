@@ -28,7 +28,7 @@ export class OwnerController {
   }
 
   @Get('stats')
-  @ApiOperation({ summary: 'Get company statistics (counts of entities)' })
+  @ApiOperation({ summary: 'Get company statistics' })
   async getStats(
     @CurrentUser() user: CurrentUserData,
   ): Promise<CompanyStatsDto> {

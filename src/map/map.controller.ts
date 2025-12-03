@@ -16,9 +16,9 @@ import { MapDataResponseDto } from './dto';
 export class MapController {
   constructor(private readonly mapService: MapService) {}
 
-  @Get('active-vehicles')
+  @Get('vehicles')
   @ApiOperation({
-    summary: 'Get all vehicles with active trips and their latest positions',
+    summary: 'Get all vehicles with their latest positions and telemetry data',
   })
   async getActiveVehicles(
     @CurrentUser() user: CurrentUserData,

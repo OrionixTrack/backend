@@ -240,19 +240,24 @@ export class RealtimeGateway
   }
 
   broadcastTelemetry(
-    tripId: number,
+    tripId: number | null,
     companyId: number,
     channelTokens: string[],
     telemetry: TelemetryUpdateDto,
   ): void {
-    this.server
-      .to(Rooms.TRIP(tripId))
-      .emit(OutgoingEvents.TELEMETRY_UPDATE, telemetry);
+    if (tripId) {
+      this.server
+        .to(Rooms.TRIP(tripId))
+        .emit(OutgoingEvents.TELEMETRY_UPDATE, telemetry);
+    }
 
     this.server
       .to(Rooms.COMPANY(companyId))
       .emit(OutgoingEvents.TELEMETRY_UPDATE, telemetry);
 
+    if (channelTokens.length == 0) {
+      return;
+    }
     const positionUpdate: PositionUpdateDto = {
       tripId: telemetry.tripId,
       latitude: telemetry.latitude,
@@ -260,7 +265,6 @@ export class RealtimeGateway
       speed: telemetry.speed,
       datetime: telemetry.datetime,
     };
-
     this.emitToChannels(
       channelTokens,
       OutgoingEvents.POSITION_UPDATE,

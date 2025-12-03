@@ -28,20 +28,23 @@ export class MapService {
         v.vehicle_id,
         v.name as vehicle_name,
         v.license_plate,
-        sd.latitude,
-        sd.longitude,
-        sd.speed,
-        sd.datetime
-      FROM trip t
-      INNER JOIN vehicle v ON v.vehicle_id = t.vehicle_id
+        COALESCE(sd.latitude, v.last_latitude::text) as latitude,
+        COALESCE(sd.longitude, v.last_longitude::text) as longitude,
+        COALESCE(sd.speed, v.last_speed::text) as speed,
+        COALESCE(sd.bearing, v.last_bearing::text) as bearing,
+        COALESCE(sd.datetime, v.last_update_time) as datetime
+      FROM vehicle v
+      LEFT JOIN trip t ON t.vehicle_id = v.vehicle_id AND t.status = $2
       LEFT JOIN LATERAL (
-        SELECT latitude, longitude, speed, datetime
+        SELECT latitude::text, longitude::text, speed::text, bearing::text, datetime
         FROM sensor_data
         WHERE trip_id = t.trip_id
         ORDER BY datetime DESC
         LIMIT 1
       ) sd ON true
-      WHERE t.company_id = $1 AND t.status = $2
+      WHERE v.company_id = $1
+        AND v.is_active = true
+        AND (v.last_latitude IS NOT NULL OR sd.latitude IS NOT NULL)
       `,
       [companyId, TripStatus.IN_PROGRESS],
     );

@@ -40,6 +40,27 @@ export class Vehicle {
   @Column({ type: 'int', nullable: true })
   company_id?: number;
 
+  @Column({ type: 'decimal', precision: 10, scale: 7, nullable: true })
+  last_latitude?: number;
+
+  @Column({ type: 'decimal', precision: 10, scale: 7, nullable: true })
+  last_longitude?: number;
+
+  @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
+  last_speed?: number;
+
+  @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
+  last_bearing?: number;
+
+  @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
+  last_temperature?: number;
+
+  @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
+  last_humidity?: number;
+
+  @Column({ type: 'timestamp', nullable: true })
+  last_update_time?: Date;
+
   @ManyToOne(() => Company, (company) => company.vehicles)
   @JoinColumn({ name: 'company_id' })
   company: Company;

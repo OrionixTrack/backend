@@ -22,6 +22,7 @@ import {
 } from './iot.constants';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { TelemetryUpdateDto } from '../realtime/dto';
+import { SaveTelemetryResult } from './types/save-telemetry-result';
 
 @Injectable()
 export class MqttClientService implements OnModuleInit, OnModuleDestroy {
@@ -127,18 +128,6 @@ export class MqttClientService implements OnModuleInit, OnModuleDestroy {
 
     try {
       const parsed: unknown = JSON.parse(payload.toString());
-      const data = plainToInstance(TelemetryDto, parsed);
-
-      const errors = await validate(data);
-      if (errors.length > 0) {
-        const errorMessages = errors
-          .map((e) => Object.values(e.constraints ?? {}).join(', '))
-          .join('; ');
-        this.logger.warn(
-          `Invalid telemetry from tracker ${trackerId}: ${errorMessages}`,
-        );
-        return;
-      }
 
       const tracker = await this.trackerRepository.findOne({
         where: { tracker_id: trackerId },
@@ -149,12 +138,38 @@ export class MqttClientService implements OnModuleInit, OnModuleDestroy {
         return;
       }
 
-      const result = await this.iotService.saveTelemetry(tracker, data);
+      const batchArray = Array.isArray(parsed) ? parsed : [parsed];
+      const batchData: TelemetryDto[] = [];
+
+      for (const item of batchArray) {
+        const dto = plainToInstance(TelemetryDto, item);
+        const errors = await validate(dto);
+
+        if (errors.length > 0) {
+          const errorMessages = errors
+            .map((e) => Object.values(e.constraints ?? {}).join(', '))
+            .join('; ');
+          this.logger.warn(
+            `Invalid telemetry point from tracker ${trackerId}: ${errorMessages}`,
+          );
+          continue;
+        }
+
+        batchData.push(dto);
+      }
+
+      if (batchData.length === 0) {
+        this.logger.warn(`No valid telemetry points from tracker ${trackerId}`);
+        return;
+      }
+
+      const result: SaveTelemetryResult | null =
+        await this.iotService.saveBatchTelemetry(tracker, batchData);
 
       if (result) {
-        const channelTokens = await this.iotService.getChannelTokensByTripId(
-          result.tripId,
-        );
+        const channelTokens = result.tripId
+          ? await this.iotService.getChannelTokensByTripId(result.tripId)
+          : [];
 
         const telemetryUpdate: TelemetryUpdateDto = {
           tripId: result.tripId,
@@ -179,9 +194,11 @@ export class MqttClientService implements OnModuleInit, OnModuleDestroy {
           telemetryUpdate,
         );
       }
-    } catch (error) {
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       this.logger.error(
-        `Failed to process message from ${topic}: ${(error as Error).message}`,
+        `Failed to process message from ${topic}: ${errorMessage}`,
       );
     }
   }

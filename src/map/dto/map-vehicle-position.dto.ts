@@ -10,6 +10,9 @@ export class MapVehiclePositionDto {
   @ApiPropertyOptional()
   speed?: number;
 
+  @ApiPropertyOptional()
+  bearing?: number;
+
   @ApiProperty()
   datetime: Date;
 }

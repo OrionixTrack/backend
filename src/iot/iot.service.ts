@@ -148,35 +148,147 @@ export class IotService {
       return null;
     }
 
+    const datetime = new Date(telemetry.datetime);
+
     const tripData = await this.getActiveTripData(
       tracker.tracker_id,
       tracker.vehicle_id,
     );
 
-    if (!tripData) {
+    if (tripData) {
+      const sensorData = this.sensorDataRepository.create({
+        trip_id: tripData.tripId,
+        latitude: Number(telemetry.latitude),
+        longitude: Number(telemetry.longitude),
+        speed: telemetry.speed ? Number(telemetry.speed) : undefined,
+        bearing: telemetry.bearing ? Number(telemetry.bearing) : undefined,
+        datetime,
+        temperature: telemetry.temperature
+          ? Number(telemetry.temperature)
+          : undefined,
+        humidity: telemetry.humidity ? Number(telemetry.humidity) : undefined,
+      });
+
+      const saved = await this.sensorDataRepository.save(sensorData);
+      return {
+        sensorData: saved,
+        tripId: tripData.tripId,
+        companyId: tripData.companyId,
+      };
+    }
+
+    const vehicle = await this.vehicleRepository.findOne({
+      where: { vehicle_id: tracker.vehicle_id },
+      select: ['vehicle_id', 'company_id'],
+    });
+
+    if (!vehicle || !vehicle.company_id) {
       return null;
     }
 
-    const datetime = telemetry.datetime
-      ? new Date(telemetry.datetime)
-      : new Date();
-
-    const sensorData = this.sensorDataRepository.create({
-      trip_id: tripData.tripId,
-      latitude: telemetry.latitude,
-      longitude: telemetry.longitude,
-      speed: telemetry.speed,
-      datetime,
-      temperature: telemetry.temperature,
-      humidity: telemetry.humidity,
+    await this.vehicleRepository.update(tracker.vehicle_id, {
+      last_latitude: Number(telemetry.latitude),
+      last_longitude: Number(telemetry.longitude),
+      last_speed: telemetry.speed ? Number(telemetry.speed) : undefined,
+      last_bearing: telemetry.bearing ? Number(telemetry.bearing) : undefined,
+      last_temperature: telemetry.temperature
+        ? Number(telemetry.temperature)
+        : undefined,
+      last_humidity: telemetry.humidity
+        ? Number(telemetry.humidity)
+        : undefined,
+      last_update_time: datetime,
     });
 
-    const saved = await this.sensorDataRepository.save(sensorData);
     return {
-      sensorData: saved,
-      tripId: tripData.tripId,
-      companyId: tripData.companyId,
+      sensorData: {
+        latitude: Number(telemetry.latitude),
+        longitude: Number(telemetry.longitude),
+        speed: telemetry.speed ? Number(telemetry.speed) : undefined,
+        bearing: telemetry.bearing ? Number(telemetry.bearing) : undefined,
+        temperature: telemetry.temperature
+          ? Number(telemetry.temperature)
+          : undefined,
+        humidity: telemetry.humidity ? Number(telemetry.humidity) : undefined,
+        datetime,
+      } as SensorData,
+      tripId: null,
+      companyId: vehicle.company_id,
     };
+  }
+
+  async saveBatchTelemetry(
+    tracker: Tracker,
+    batch: TelemetryDto[],
+  ): Promise<SaveTelemetryResult | null> {
+    if (!tracker.vehicle_id || batch.length === 0) {
+      return null;
+    }
+
+    const sortedBatch = [...batch].sort((a, b) => {
+      const dateA = new Date(a.datetime);
+      const dateB = new Date(b.datetime);
+      return dateA.getTime() - dateB.getTime();
+    });
+
+    const minTimestamp = new Date(sortedBatch[0].datetime);
+    const maxTimestamp = new Date(sortedBatch[sortedBatch.length - 1].datetime);
+
+    const trips = await this.tripRepository
+      .createQueryBuilder('trip')
+      .where('trip.vehicle_id = :vehicleId', { vehicleId: tracker.vehicle_id })
+      .andWhere('trip.actual_start_datetime <= :maxTimestamp', { maxTimestamp })
+      .andWhere(
+        '(trip.end_datetime IS NULL OR trip.end_datetime >= :minTimestamp)',
+        { minTimestamp },
+      )
+      .orderBy('trip.actual_start_datetime', 'ASC')
+      .getMany();
+
+    const findTripForTimestamp = (timestamp: Date): Trip | null => {
+      for (const trip of trips) {
+        if (
+          trip.actual_start_datetime &&
+          trip.actual_start_datetime <= timestamp &&
+          (!trip.end_datetime || trip.end_datetime >= timestamp)
+        ) {
+          return trip;
+        }
+      }
+      return null;
+    };
+
+    const sensorDataBatch: SensorData[] = [];
+
+    for (const telemetry of sortedBatch) {
+      const datetime = new Date(telemetry.datetime);
+      const trip = findTripForTimestamp(datetime);
+
+      if (trip) {
+        sensorDataBatch.push(
+          this.sensorDataRepository.create({
+            trip_id: trip.trip_id,
+            latitude: Number(telemetry.latitude),
+            longitude: Number(telemetry.longitude),
+            speed: telemetry.speed ? Number(telemetry.speed) : undefined,
+            bearing: telemetry.bearing ? Number(telemetry.bearing) : undefined,
+            datetime,
+            temperature: telemetry.temperature
+              ? Number(telemetry.temperature)
+              : undefined,
+            humidity: telemetry.humidity
+              ? Number(telemetry.humidity)
+              : undefined,
+          }),
+        );
+      }
+    }
+
+    if (sensorDataBatch.length > 0) {
+      await this.sensorDataRepository.save(sensorDataBatch);
+    }
+
+    return this.saveTelemetry(tracker, sortedBatch[sortedBatch.length - 1]);
   }
 
   async getChannelTokensByTripId(tripId: number): Promise<string[]> {
