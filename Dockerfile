@@ -23,6 +23,7 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/src/common/migrations ./src/common/migrations
 COPY --from=builder /app/src/data-source.ts ./src/data-source.ts
 COPY --from=builder /app/src/common/entities ./src/common/entities
+COPY --from=builder /app/src/common/types ./src/common/types
 
 EXPOSE 3000
 
