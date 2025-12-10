@@ -19,5 +19,6 @@ export const REDIS_TTL_SECONDS = {
 export const MQTT_CONFIG = {
   RECONNECT_PERIOD_MS: 5000,
   CONNECT_TIMEOUT_MS: 30000,
-  QOS: 0 as const,
+  QOS: 2,
+  CLIENT_ID: 'orionix-backend-main',
 } as const;

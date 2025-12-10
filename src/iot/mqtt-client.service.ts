@@ -65,7 +65,8 @@ export class MqttClientService implements OnModuleInit, OnModuleDestroy {
     this.client = mqtt.connect(url, {
       username,
       password,
-      clientId: `orionix-backend-${Date.now()}`,
+      clientId: MQTT_CONFIG.CLIENT_ID,
+      clean: false,
       reconnectPeriod: MQTT_CONFIG.RECONNECT_PERIOD_MS,
       connectTimeout: MQTT_CONFIG.CONNECT_TIMEOUT_MS,
     });
