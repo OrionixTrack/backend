@@ -54,3 +54,14 @@ npm run migration:revert
 ## API Documentation
 
 Swagger UI available at `http://localhost:3000/api` when running in development mode.
+
+## Production Deployment
+
+For production deployment on VPS with Docker and GitHub Actions, see detailed instructions in [deployment/DEPLOYMENT.md](./deployment/DEPLOYMENT.md).
+
+**Quick overview:**
+1. Setup VPS with Docker
+2. Configure GitHub Secrets (VPS_HOST, VPS_USER, VPS_SSH_KEY)
+3. Push to `main` branch → automatic deployment
+
+Docker images are published to GitHub Container Registry: `ghcr.io/YOUR_USERNAME/orionix-track:latest`

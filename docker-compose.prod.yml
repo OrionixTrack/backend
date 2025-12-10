@@ -1,0 +1,91 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: orionix-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_DATABASE}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USERNAME} -d ${DB_DATABASE} -h localhost']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - orionix-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: orionix-redis
+    restart: always
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - orionix-network
+
+  emqx:
+    image: emqx/emqx:5.8
+    container_name: orionix-emqx
+    restart: always
+    environment:
+      EMQX_NAME: orionix-emqx
+      EMQX_HOST: 0.0.0.0
+      EMQX_DASHBOARD__DEFAULT_USERNAME: ${EMQX_DASHBOARD_USERNAME}
+      EMQX_DASHBOARD__DEFAULT_PASSWORD: ${EMQX_DASHBOARD_PASSWORD}
+      EMQX_DASHBOARD__LISTENERS__HTTP__BIND: "0.0.0.0:18083"
+    ports:
+      - '${MQTT_PORT}:1883'
+      - '${MQTT_WS_PORT}:8083'
+      - '${EMQX_DASHBOARD_PORT}:18083'
+    volumes:
+      - emqx_data:/opt/emqx/data
+      - ./emqx/emqx.conf:/opt/emqx/etc/emqx.conf:ro
+    healthcheck:
+      test: ['CMD', 'emqx', 'ctl', 'status']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - orionix-network
+
+  backend:
+    image: ghcr.io/${GITHUB_REPOSITORY}:latest
+    container_name: orionix-backend
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      emqx:
+        condition: service_healthy
+    env_file:
+      - ./.env
+    ports:
+      - '${PORT}:3000'
+    networks:
+      - orionix-network
+    command: >
+      sh -c "
+        echo 'Running migrations...' &&
+        npm run migration:run &&
+        echo 'Starting application...' &&
+        node dist/main.js
+      "
+
+volumes:
+  postgres_data:
+  redis_data:
+  emqx_data:
+
+networks:
+  orionix-network:
+    driver: bridge
