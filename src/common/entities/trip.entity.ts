@@ -23,13 +23,13 @@ export class Trip {
   company_id: number;
 
   @Column({ type: 'int', nullable: true })
-  assigned_driver_id?: number;
+  assigned_driver_id?: number | null;
 
   @Column({ type: 'int' })
   created_by_dispatcher_id: number;
 
   @Column({ type: 'int', nullable: true })
-  vehicle_id?: number;
+  vehicle_id?: number | null;
 
   @Column({ type: 'varchar', length: 255 })
   name: string;

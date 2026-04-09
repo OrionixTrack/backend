@@ -66,7 +66,10 @@ export class TrackerService {
     companyId: number,
     createTrackerDto: CreateTrackerDto,
   ): Promise<TrackerWithTokenResponseDto> {
-    if (createTrackerDto.vehicle_id) {
+    if (
+      createTrackerDto.vehicle_id !== undefined &&
+      createTrackerDto.vehicle_id !== null
+    ) {
       await this.validateVehicleAssignment(
         createTrackerDto.vehicle_id,
         companyId,
@@ -113,10 +116,10 @@ export class TrackerService {
     }
 
     tracker.name = updateTrackerDto.name;
-    tracker.vehicle_id =
-      updateTrackerDto.vehicle_id === null
-        ? undefined
-        : (updateTrackerDto.vehicle_id ?? tracker.vehicle_id);
+
+    if (updateTrackerDto.vehicle_id !== undefined) {
+      tracker.vehicle_id = updateTrackerDto.vehicle_id;
+    }
 
     const updatedTracker = await this.trackerRepository.save(tracker);
 

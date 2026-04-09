@@ -21,7 +21,7 @@ export class Tracker {
   device_secret_token_hash: string;
 
   @Column({ type: 'int', nullable: true })
-  vehicle_id?: number;
+  vehicle_id?: number | null;
 
   @Column({ type: 'int' })
   company_id: number;

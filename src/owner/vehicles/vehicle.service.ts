@@ -155,13 +155,10 @@ export class VehicleService {
 
     await this.trackerRepository.update(
       { vehicle_id: id },
-      { vehicle_id: undefined },
+      { vehicle_id: null },
     );
 
-    await this.tripRepository.update(
-      { vehicle_id: id },
-      { vehicle_id: undefined },
-    );
+    await this.tripRepository.update({ vehicle_id: id }, { vehicle_id: null });
 
     await this.vehicleRepository.remove(vehicle);
   }

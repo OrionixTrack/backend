@@ -156,14 +156,14 @@ export class TripService {
       if (dto.driverId !== null) {
         await this.validateDriver(dto.driverId, companyId);
       }
-      trip.assigned_driver_id = dto.driverId ?? undefined;
+      trip.assigned_driver_id = dto.driverId;
     }
 
     if (dto.vehicleId !== undefined) {
       if (dto.vehicleId !== null) {
         await this.validateVehicle(dto.vehicleId, companyId);
       }
-      trip.vehicle_id = dto.vehicleId ?? undefined;
+      trip.vehicle_id = dto.vehicleId;
     }
 
     if (dto.name !== undefined) trip.name = dto.name;
@@ -212,7 +212,7 @@ export class TripService {
       await this.validateDriver(driverId, companyId);
     }
 
-    trip.assigned_driver_id = driverId ?? undefined;
+    trip.assigned_driver_id = driverId;
     await this.tripRepository.save(trip);
 
     return this.findOne(tripId, companyId);
@@ -239,7 +239,7 @@ export class TripService {
       await this.validateVehicle(vehicleId, companyId);
     }
 
-    trip.vehicle_id = vehicleId ?? undefined;
+    trip.vehicle_id = vehicleId;
     await this.tripRepository.save(trip);
 
     return this.findOne(tripId, companyId);
@@ -414,17 +414,19 @@ export class TripService {
       }
     }
 
-    const vehicleActiveTrip = await this.tripRepository.findOne({
-      where: {
-        vehicle_id: trip.vehicle_id,
-        status: TripStatus.IN_PROGRESS,
-      },
-    });
+    if (trip.vehicle_id) {
+      const vehicleActiveTrip = await this.tripRepository.findOne({
+        where: {
+          vehicle_id: trip.vehicle_id,
+          status: TripStatus.IN_PROGRESS,
+        },
+      });
 
-    if (vehicleActiveTrip) {
-      throw new BadRequestException(
-        'Vehicle already has an active trip in progress',
-      );
+      if (vehicleActiveTrip) {
+        throw new BadRequestException(
+          'Vehicle already has an active trip in progress',
+        );
+      }
     }
   }
 
