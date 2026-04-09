@@ -18,6 +18,7 @@ import { EmailService } from '../../email/email.service';
 import { InviteEmployeeDto } from './dto/invite-employee.dto';
 import { AcceptInvitationDto } from './dto/accept-invitation.dto';
 import { InvitationResponseDto } from './dto/invitation-response.dto';
+import { InvitationQueryDto } from './dto/invitation-query.dto';
 import { EmployeeRole } from '../../common/types/employee-role';
 import { InvitationStatus } from '../../common/types/invitation-status';
 import { DriverMapper } from '../../driver/driver.mapper';
@@ -123,11 +124,23 @@ export class InvitationService {
 
   async getInvitationsByCompany(
     companyId: number,
+    query: InvitationQueryDto,
   ): Promise<InvitationResponseDto[]> {
-    const invitations = await this.invitationRepository.find({
-      where: { company_id: companyId },
-      order: { created_at: 'DESC' },
-    });
+    const queryBuilder = this.invitationRepository
+      .createQueryBuilder('invitation')
+      .where('invitation.company_id = :companyId', { companyId });
+
+    if (query.search) {
+      queryBuilder.andWhere('invitation.email ILIKE :search', {
+        search: `%${query.search}%`,
+      });
+    }
+
+    const invitations = await queryBuilder
+      .orderBy('invitation.created_at', query.sortOrder)
+      .skip(query.offset)
+      .take(query.limit)
+      .getMany();
 
     return invitations.map((inv) => this.toResponseDto(inv));
   }

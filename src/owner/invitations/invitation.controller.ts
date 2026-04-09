@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -13,6 +13,7 @@ import type { CurrentUserData } from '../../auth/decorators/current-user.decorat
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { InviteEmployeeDto } from './dto/invite-employee.dto';
 import { InvitationResponseDto } from './dto/invitation-response.dto';
+import { InvitationQueryDto } from './dto/invitation-query.dto';
 
 @ApiTags('Invitations')
 @ApiBearerAuth('JWT-auth')
@@ -44,7 +45,11 @@ export class InvitationController {
   @ApiOperation({ summary: 'Get all invitations for the company' })
   async getInvitations(
     @CurrentUser() user: CurrentUserData,
+    @Query() query: InvitationQueryDto,
   ): Promise<InvitationResponseDto[]> {
-    return this.invitationService.getInvitationsByCompany(user.companyId);
+    return this.invitationService.getInvitationsByCompany(
+      user.companyId,
+      query,
+    );
   }
 }
