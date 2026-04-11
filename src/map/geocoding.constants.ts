@@ -1,0 +1,10 @@
+export const GEOCODING_CACHE_TTL_SECONDS = {
+  SEARCH: 60 * 60 * 24,
+  REVERSE: 60 * 60 * 24 * 7,
+} as const;
+
+export const GEOCODING_RATE_LIMIT = {
+  WINDOW_SECONDS: 60,
+  SEARCH_REQUESTS_PER_WINDOW: 30,
+  REVERSE_REQUESTS_PER_WINDOW: 60,
+} as const;
