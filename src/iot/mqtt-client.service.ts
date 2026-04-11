@@ -176,6 +176,9 @@ export class MqttClientService implements OnModuleInit, OnModuleDestroy {
           tripId: result.tripId,
           latitude: Number(result.sensorData.latitude),
           longitude: Number(result.sensorData.longitude),
+          bearing: result.sensorData.bearing
+            ? Number(result.sensorData.bearing)
+            : undefined,
           speed: result.sensorData.speed
             ? Number(result.sensorData.speed)
             : undefined,

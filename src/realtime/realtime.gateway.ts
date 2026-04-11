@@ -264,6 +264,7 @@ export class RealtimeGateway
       longitude: telemetry.longitude,
       speed: telemetry.speed,
       datetime: telemetry.datetime,
+      bearing: telemetry.bearing,
     };
     this.emitToChannels(
       channelTokens,
