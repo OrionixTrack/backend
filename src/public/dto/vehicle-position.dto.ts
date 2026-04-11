@@ -7,6 +7,9 @@ export class VehiclePositionDto {
   @ApiProperty()
   longitude: number;
 
+  @ApiProperty()
+  bearing?: number;
+
   @ApiPropertyOptional()
   speed?: number;
 

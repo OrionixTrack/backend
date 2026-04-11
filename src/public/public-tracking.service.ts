@@ -68,6 +68,9 @@ export class PublicTrackingService {
     return {
       latitude: Number(latestSensorData.latitude),
       longitude: Number(latestSensorData.longitude),
+      bearing: latestSensorData.bearing
+        ? Number(latestSensorData.bearing)
+        : undefined,
       speed: latestSensorData.speed
         ? Number(latestSensorData.speed)
         : undefined,
