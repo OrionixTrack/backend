@@ -71,6 +71,11 @@ import { EmployeeManagementService } from './employees/employee-management.servi
     TrackerService,
     TrackingChannelService,
   ],
-  exports: [OwnerService, InvitationService],
+  exports: [
+    OwnerService,
+    InvitationService,
+    EmployeeManagementService,
+    VehicleService,
+  ],
 })
 export class OwnerModule {}

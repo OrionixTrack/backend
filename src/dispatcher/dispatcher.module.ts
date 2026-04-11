@@ -8,12 +8,14 @@ import { DispatcherTrackingChannelService } from './dispatcher-tracking-channel.
 import { Dispatcher, TrackingChannel, Trip } from '../common/entities';
 import { TripModule } from '../trip/trip.module';
 import { RealtimeModule } from '../realtime/realtime.module';
+import { OwnerModule } from '../owner/owner.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Dispatcher, TrackingChannel, Trip]),
     TripModule,
     RealtimeModule,
+    OwnerModule,
   ],
   controllers: [
     DispatcherController,
