@@ -49,7 +49,7 @@ export class EmailService {
     token: string,
     language: UserLanguage,
   ): Promise<void> {
-    const resetLink = `${this.frontendUrl}/auth/reset-password?token=${token}`;
+    const resetLink = `${this.frontendUrl}/reset-password?token=${token}`;
 
     const { subject, html, text } =
       this.templateService.getPasswordResetTemplate(resetLink, language);
