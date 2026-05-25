@@ -10,7 +10,7 @@ import {
 } from '@nestjs/websockets';
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Server, Socket } from 'socket.io';
+import { Namespace, Server, Socket } from 'socket.io';
 import { createAdapter } from '@socket.io/redis-adapter';
 import Redis from 'ioredis';
 import { validate, ValidationError } from 'class-validator';
@@ -68,13 +68,13 @@ export class RealtimeGateway
     private readonly configService: ConfigService,
   ) {}
 
-  afterInit(server: Server): void {
+  afterInit(nsp: Namespace): void {
     const host = this.configService.get<string>('REDIS_HOST', 'redis');
     const port = this.configService.get<number>('REDIS_PORT', 6379);
     const url = `redis://${host}:${port}`;
     const pubClient = new Redis(url);
     const subClient = pubClient.duplicate();
-    server.adapter(createAdapter(pubClient, subClient));
+    nsp.server.adapter(createAdapter(pubClient, subClient));
     this.logger.log('Socket.io Redis adapter attached');
   }
 
