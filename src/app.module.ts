@@ -40,6 +40,12 @@ import { MapModule } from './map';
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
         synchronize: false,
         logging: configService.get('NODE_ENV') === 'development',
+        extra: {
+          max: parseInt(configService.get('DB_POOL_MAX', '15')),
+          min: 2,
+          idleTimeoutMillis: 30000,
+          connectionTimeoutMillis: 5000,
+        },
       }),
       inject: [ConfigService],
     }),

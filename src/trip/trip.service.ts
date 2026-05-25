@@ -4,8 +4,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, Repository } from 'typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { Brackets, DataSource, QueryRunner, Repository } from 'typeorm';
 import * as polyline from '@mapbox/polyline';
 import { Driver, SensorData, Trip, Vehicle } from '../common/entities';
 import { TripSortField } from './dto/trip-query.dto';
@@ -25,6 +25,7 @@ import { TRIP_STATS_CHART_POINT_COUNT } from './trip.constants';
 @Injectable()
 export class TripService {
   constructor(
+    @InjectDataSource() private readonly dataSource: DataSource,
     @InjectRepository(Trip)
     private tripRepository: Repository<Trip>,
     @InjectRepository(SensorData)
@@ -140,53 +141,60 @@ export class TripService {
     companyId: number,
     dto: UpdateTripDto,
   ): Promise<TripResponseDto> {
-    const trip = await this.tripRepository.findOne({
-      where: { trip_id: tripId, company_id: companyId },
+    await this.runInTransaction(async (qr) => {
+      const trip = await qr.manager
+        .createQueryBuilder(Trip, 'trip')
+        .setLock('pessimistic_write')
+        .where('trip.trip_id = :tripId AND trip.company_id = :companyId', {
+          tripId,
+          companyId,
+        })
+        .getOne();
+
+      if (!trip) {
+        throw new NotFoundException('Trip not found');
+      }
+
+      if (trip.status !== TripStatus.PLANNED) {
+        throw new ForbiddenException('Only planned trips can be updated');
+      }
+
+      if (dto.driverId !== undefined) {
+        if (dto.driverId !== null) {
+          await this.validateDriver(dto.driverId, companyId);
+        }
+        trip.assigned_driver_id = dto.driverId;
+      }
+
+      if (dto.vehicleId !== undefined) {
+        if (dto.vehicleId !== null) {
+          await this.validateVehicle(dto.vehicleId, companyId);
+        }
+        trip.vehicle_id = dto.vehicleId;
+      }
+
+      if (dto.name !== undefined) trip.name = dto.name;
+      if (dto.description !== undefined) trip.description = dto.description;
+      if (dto.plannedStart !== undefined) {
+        trip.planned_start_datetime = dto.plannedStart
+          ? new Date(dto.plannedStart)
+          : undefined;
+      }
+      if (dto.contactInfo !== undefined) trip.contact_info = dto.contactInfo;
+      if (dto.startAddress !== undefined) trip.start_address = dto.startAddress;
+      if (dto.startLatitude !== undefined)
+        trip.start_latitude = dto.startLatitude;
+      if (dto.startLongitude !== undefined)
+        trip.start_longitude = dto.startLongitude;
+      if (dto.finishAddress !== undefined)
+        trip.finish_address = dto.finishAddress;
+      if (dto.finishLatitude !== undefined)
+        trip.finish_latitude = dto.finishLatitude;
+      if (dto.finishLongitude !== undefined)
+        trip.finish_longitude = dto.finishLongitude;
+
+      await qr.manager.save(trip);
     });
-
-    if (!trip) {
-      throw new NotFoundException('Trip not found');
-    }
-
-    if (trip.status !== TripStatus.PLANNED) {
-      throw new ForbiddenException('Only planned trips can be updated');
-    }
-
-    if (dto.driverId !== undefined) {
-      if (dto.driverId !== null) {
-        await this.validateDriver(dto.driverId, companyId);
-      }
-      trip.assigned_driver_id = dto.driverId;
-    }
-
-    if (dto.vehicleId !== undefined) {
-      if (dto.vehicleId !== null) {
-        await this.validateVehicle(dto.vehicleId, companyId);
-      }
-      trip.vehicle_id = dto.vehicleId;
-    }
-
-    if (dto.name !== undefined) trip.name = dto.name;
-    if (dto.description !== undefined) trip.description = dto.description;
-    if (dto.plannedStart !== undefined) {
-      trip.planned_start_datetime = dto.plannedStart
-        ? new Date(dto.plannedStart)
-        : undefined;
-    }
-    if (dto.contactInfo !== undefined) trip.contact_info = dto.contactInfo;
-    if (dto.startAddress !== undefined) trip.start_address = dto.startAddress;
-    if (dto.startLatitude !== undefined)
-      trip.start_latitude = dto.startLatitude;
-    if (dto.startLongitude !== undefined)
-      trip.start_longitude = dto.startLongitude;
-    if (dto.finishAddress !== undefined)
-      trip.finish_address = dto.finishAddress;
-    if (dto.finishLatitude !== undefined)
-      trip.finish_latitude = dto.finishLatitude;
-    if (dto.finishLongitude !== undefined)
-      trip.finish_longitude = dto.finishLongitude;
-
-    await this.tripRepository.save(trip);
 
     return this.findOne(tripId, companyId);
   }
@@ -246,14 +254,19 @@ export class TripService {
   }
 
   async startTrip(tripId: number, companyId: number): Promise<TripResponseDto> {
-    const trip = await this.getTripByCompany(tripId, companyId);
-    await this.performStartTrip(trip);
+    await this.performStartTripLocked(tripId, { companyId });
+    await this.broadcastTripStatus(tripId, companyId, TripStatus.IN_PROGRESS);
     return this.findOne(tripId, companyId);
   }
 
   async endTrip(tripId: number, companyId: number): Promise<TripResponseDto> {
-    const trip = await this.getTripByCompany(tripId, companyId);
-    await this.performEndTrip(trip);
+    const { vehicleId } = await this.performEndTripLocked(tripId, {
+      companyId,
+    });
+    if (vehicleId) {
+      await this.iotService.invalidateVehicleTripCache(vehicleId);
+    }
+    await this.broadcastTripStatus(tripId, companyId, TripStatus.COMPLETED);
     return this.findOne(tripId, companyId);
   }
 
@@ -261,29 +274,39 @@ export class TripService {
     tripId: number,
     companyId: number,
   ): Promise<TripResponseDto> {
-    const trip = await this.tripRepository.findOne({
-      where: { trip_id: tripId, company_id: companyId },
+    let vehicleId: number | null = null;
+
+    await this.runInTransaction(async (qr) => {
+      const trip = await qr.manager
+        .createQueryBuilder(Trip, 'trip')
+        .setLock('pessimistic_write')
+        .where('trip.trip_id = :tripId AND trip.company_id = :companyId', {
+          tripId,
+          companyId,
+        })
+        .getOne();
+
+      if (!trip) {
+        throw new NotFoundException('Trip not found');
+      }
+
+      if (
+        trip.status === TripStatus.COMPLETED ||
+        trip.status === TripStatus.CANCELLED
+      ) {
+        throw new ForbiddenException(
+          'Cannot cancel completed or already cancelled trips',
+        );
+      }
+
+      trip.status = TripStatus.CANCELLED;
+      trip.end_datetime = new Date();
+      await qr.manager.save(trip);
+      vehicleId = trip.vehicle_id ?? null;
     });
 
-    if (!trip) {
-      throw new NotFoundException('Trip not found');
-    }
-
-    if (
-      trip.status === TripStatus.COMPLETED ||
-      trip.status === TripStatus.CANCELLED
-    ) {
-      throw new ForbiddenException(
-        'Cannot cancel completed or already cancelled trips',
-      );
-    }
-
-    trip.status = TripStatus.CANCELLED;
-    trip.end_datetime = new Date();
-    await this.tripRepository.save(trip);
-
-    if (trip.vehicle_id) {
-      await this.iotService.invalidateVehicleTripCache(trip.vehicle_id);
+    if (vehicleId) {
+      await this.iotService.invalidateVehicleTripCache(vehicleId);
     }
 
     await this.broadcastTripStatus(tripId, companyId, TripStatus.CANCELLED);
@@ -344,110 +367,134 @@ export class TripService {
     }
   }
 
-  private async getTripByCompany(
+  private async runInTransaction<T>(
+    fn: (qr: QueryRunner) => Promise<T>,
+  ): Promise<T> {
+    const qr = this.dataSource.createQueryRunner();
+    await qr.connect();
+    await qr.startTransaction();
+    try {
+      const result = await fn(qr);
+      await qr.commitTransaction();
+      return result;
+    } catch (e) {
+      await qr.rollbackTransaction();
+      throw e;
+    } finally {
+      await qr.release();
+    }
+  }
+
+  private async performStartTripLocked(
     tripId: number,
-    companyId: number,
-  ): Promise<Trip> {
-    const trip = await this.tripRepository.findOne({
-      where: { trip_id: tripId, company_id: companyId },
-    });
+    where: { companyId?: number; driverId?: number },
+  ): Promise<void> {
+    await this.runInTransaction(async (qr) => {
+      const qb = qr.manager
+        .createQueryBuilder(Trip, 'trip')
+        .setLock('pessimistic_write')
+        .where('trip.trip_id = :tripId', { tripId });
 
-    if (!trip) {
-      throw new NotFoundException('Trip not found');
-    }
+      if (where.companyId !== undefined) {
+        qb.andWhere('trip.company_id = :companyId', {
+          companyId: where.companyId,
+        });
+      }
+      if (where.driverId !== undefined) {
+        qb.andWhere('trip.assigned_driver_id = :driverId', {
+          driverId: where.driverId,
+        });
+      }
 
-    return trip;
-  }
+      const trip = await qb.getOne();
 
-  private async getTripByDriver(
-    tripId: number,
-    driverId: number,
-  ): Promise<Trip> {
-    const trip = await this.tripRepository.findOne({
-      where: { trip_id: tripId, assigned_driver_id: driverId },
-    });
-
-    if (!trip) {
-      throw new NotFoundException('Trip not found or not assigned to you');
-    }
-
-    return trip;
-  }
-
-  private async performStartTrip(trip: Trip): Promise<void> {
-    if (trip.status !== TripStatus.PLANNED) {
-      throw new ForbiddenException('Can only start planned trips');
-    }
-
-    if (!trip.vehicle_id) {
-      throw new BadRequestException(
-        'Vehicle must be assigned before starting trip',
-      );
-    }
-
-    await this.validateNoActiveTrips(trip);
-
-    trip.status = TripStatus.IN_PROGRESS;
-    trip.actual_start_datetime = new Date();
-    await this.tripRepository.save(trip);
-
-    await this.broadcastTripStatus(
-      trip.trip_id,
-      trip.company_id,
-      TripStatus.IN_PROGRESS,
-    );
-  }
-
-  private async validateNoActiveTrips(trip: Trip): Promise<void> {
-    if (trip.assigned_driver_id) {
-      const driverActiveTrip = await this.tripRepository.findOne({
-        where: {
-          assigned_driver_id: trip.assigned_driver_id,
-          status: TripStatus.IN_PROGRESS,
-        },
-      });
-
-      if (driverActiveTrip) {
-        throw new BadRequestException(
-          'Driver already has an active trip in progress',
+      if (!trip) {
+        throw new NotFoundException(
+          where.driverId
+            ? 'Trip not found or not assigned to you'
+            : 'Trip not found',
         );
       }
-    }
 
-    if (trip.vehicle_id) {
-      const vehicleActiveTrip = await this.tripRepository.findOne({
-        where: {
-          vehicle_id: trip.vehicle_id,
-          status: TripStatus.IN_PROGRESS,
-        },
+      if (trip.status !== TripStatus.PLANNED) {
+        throw new ForbiddenException('Can only start planned trips');
+      }
+
+      if (!trip.vehicle_id) {
+        throw new BadRequestException(
+          'Vehicle must be assigned before starting trip',
+        );
+      }
+
+      if (trip.assigned_driver_id) {
+        const driverActive = await qr.manager.findOne(Trip, {
+          where: {
+            assigned_driver_id: trip.assigned_driver_id,
+            status: TripStatus.IN_PROGRESS,
+          },
+        });
+        if (driverActive) {
+          throw new BadRequestException(
+            'Driver already has an active trip in progress',
+          );
+        }
+      }
+
+      const vehicleActive = await qr.manager.findOne(Trip, {
+        where: { vehicle_id: trip.vehicle_id, status: TripStatus.IN_PROGRESS },
       });
-
-      if (vehicleActiveTrip) {
+      if (vehicleActive) {
         throw new BadRequestException(
           'Vehicle already has an active trip in progress',
         );
       }
-    }
+
+      trip.status = TripStatus.IN_PROGRESS;
+      trip.actual_start_datetime = new Date();
+      await qr.manager.save(trip);
+    });
   }
 
-  private async performEndTrip(trip: Trip): Promise<void> {
-    if (trip.status !== TripStatus.IN_PROGRESS) {
-      throw new ForbiddenException('Can only end trips that are in progress');
-    }
+  private async performEndTripLocked(
+    tripId: number,
+    where: { companyId?: number; driverId?: number },
+  ): Promise<{ vehicleId: number | null }> {
+    return this.runInTransaction(async (qr) => {
+      const qb = qr.manager
+        .createQueryBuilder(Trip, 'trip')
+        .setLock('pessimistic_write')
+        .where('trip.trip_id = :tripId', { tripId });
 
-    trip.status = TripStatus.COMPLETED;
-    trip.end_datetime = new Date();
-    await this.tripRepository.save(trip);
+      if (where.companyId !== undefined) {
+        qb.andWhere('trip.company_id = :companyId', {
+          companyId: where.companyId,
+        });
+      }
+      if (where.driverId !== undefined) {
+        qb.andWhere('trip.assigned_driver_id = :driverId', {
+          driverId: where.driverId,
+        });
+      }
 
-    if (trip.vehicle_id) {
-      await this.iotService.invalidateVehicleTripCache(trip.vehicle_id);
-    }
+      const trip = await qb.getOne();
 
-    await this.broadcastTripStatus(
-      trip.trip_id,
-      trip.company_id,
-      TripStatus.COMPLETED,
-    );
+      if (!trip) {
+        throw new NotFoundException(
+          where.driverId
+            ? 'Trip not found or not assigned to you'
+            : 'Trip not found',
+        );
+      }
+
+      if (trip.status !== TripStatus.IN_PROGRESS) {
+        throw new ForbiddenException('Can only end trips that are in progress');
+      }
+
+      trip.status = TripStatus.COMPLETED;
+      trip.end_datetime = new Date();
+      await qr.manager.save(trip);
+      return { vehicleId: trip.vehicle_id ?? null };
+    });
   }
 
   private async broadcastTripStatus(
@@ -577,8 +624,18 @@ export class TripService {
     tripId: number,
     driverId: number,
   ): Promise<TripResponseDto> {
-    const trip = await this.getTripByDriver(tripId, driverId);
-    await this.performStartTrip(trip);
+    await this.performStartTripLocked(tripId, { driverId });
+    const trip = await this.tripRepository.findOne({
+      where: { trip_id: tripId },
+      select: ['company_id'],
+    });
+    if (trip) {
+      await this.broadcastTripStatus(
+        tripId,
+        trip.company_id,
+        TripStatus.IN_PROGRESS,
+      );
+    }
     return this.findOneForDriver(tripId, driverId);
   }
 
@@ -586,8 +643,21 @@ export class TripService {
     tripId: number,
     driverId: number,
   ): Promise<TripResponseDto> {
-    const trip = await this.getTripByDriver(tripId, driverId);
-    await this.performEndTrip(trip);
+    const { vehicleId } = await this.performEndTripLocked(tripId, { driverId });
+    if (vehicleId) {
+      await this.iotService.invalidateVehicleTripCache(vehicleId);
+    }
+    const trip = await this.tripRepository.findOne({
+      where: { trip_id: tripId },
+      select: ['company_id'],
+    });
+    if (trip) {
+      await this.broadcastTripStatus(
+        tripId,
+        trip.company_id,
+        TripStatus.COMPLETED,
+      );
+    }
     return this.findOneForDriver(tripId, driverId);
   }
 

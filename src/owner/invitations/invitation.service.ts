@@ -4,8 +4,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan } from 'typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, QueryRunner, Repository, LessThan } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'crypto';
@@ -35,6 +35,7 @@ export class InvitationService {
   private readonly invitationExpirationTime: StringValue;
 
   constructor(
+    @InjectDataSource() private readonly dataSource: DataSource,
     @InjectRepository(Invitation)
     private invitationRepository: Repository<Invitation>,
     @InjectRepository(CompanyOwner)
@@ -150,80 +151,102 @@ export class InvitationService {
   ): Promise<EmployeeAuthResponse> {
     const { token, name, surname, password, language } = acceptDto;
 
-    const invitation = await this.invitationRepository.findOne({
-      where: { token },
-      relations: ['company'],
-    });
-
-    if (!invitation) {
-      throw new BadRequestException('Invalid invitation token');
-    }
-
-    if (invitation.status !== InvitationStatus.PENDING) {
-      throw new BadRequestException('Invitation is no longer valid');
-    }
-
-    if (invitation.expires_at < new Date()) {
-      invitation.status = InvitationStatus.EXPIRED;
-      await this.invitationRepository.save(invitation);
-      throw new BadRequestException('Invitation has expired');
-    }
-
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    let authResponse: EmployeeAuthResponse;
+    return this.runInTransaction(async (qr) => {
+      const invitation = await qr.manager
+        .createQueryBuilder(Invitation, 'inv')
+        .setLock('pessimistic_write')
+        .where('inv.token = :token', { token })
+        .leftJoinAndSelect('inv.company', 'company')
+        .getOne();
 
-    if (invitation.role === EmployeeRole.DRIVER) {
-      const driver = this.driverRepository.create({
-        name,
-        surname,
-        email: invitation.email,
-        password: hashedPassword,
-        language,
-        company_id: invitation.company_id,
-      });
-      const savedDriver = await this.driverRepository.save(driver);
-
-      const driverWithCompany = await this.driverRepository.findOne({
-        where: { driver_id: savedDriver.driver_id },
-        relations: ['company'],
-      });
-
-      if (!driverWithCompany) {
-        throw new Error('Failed to load driver with company');
+      if (!invitation) {
+        throw new BadRequestException('Invalid invitation token');
       }
 
-      authResponse = this.generateDriverAuthToken(driverWithCompany);
-    } else if (invitation.role === EmployeeRole.DISPATCHER) {
-      const dispatcher = this.dispatcherRepository.create({
-        name,
-        surname,
-        email: invitation.email,
-        password: hashedPassword,
-        language,
-        company_id: invitation.company_id,
-      });
-      const savedDispatcher = await this.dispatcherRepository.save(dispatcher);
-
-      const dispatcherWithCompany = await this.dispatcherRepository.findOne({
-        where: { dispatcher_id: savedDispatcher.dispatcher_id },
-        relations: ['company'],
-      });
-
-      if (!dispatcherWithCompany) {
-        throw new Error('Failed to load dispatcher with company');
+      if (invitation.status !== InvitationStatus.PENDING) {
+        throw new BadRequestException('Invitation is no longer valid');
       }
 
-      authResponse = this.generateDispatcherAuthToken(dispatcherWithCompany);
-    } else {
-      throw new BadRequestException('Invalid role');
+      if (invitation.expires_at < new Date()) {
+        invitation.status = InvitationStatus.EXPIRED;
+        await qr.manager.save(invitation);
+        throw new BadRequestException('Invitation has expired');
+      }
+
+      let authResponse: EmployeeAuthResponse;
+
+      if (invitation.role === EmployeeRole.DRIVER) {
+        const driver = this.driverRepository.create({
+          name,
+          surname,
+          email: invitation.email,
+          password: hashedPassword,
+          language,
+          company_id: invitation.company_id,
+        });
+        const savedDriver = await qr.manager.save(driver);
+
+        const driverWithCompany = await qr.manager.findOne(Driver, {
+          where: { driver_id: savedDriver.driver_id },
+          relations: ['company'],
+        });
+
+        if (!driverWithCompany) {
+          throw new Error('Failed to load driver with company');
+        }
+
+        authResponse = this.generateDriverAuthToken(driverWithCompany);
+      } else if (invitation.role === EmployeeRole.DISPATCHER) {
+        const dispatcher = this.dispatcherRepository.create({
+          name,
+          surname,
+          email: invitation.email,
+          password: hashedPassword,
+          language,
+          company_id: invitation.company_id,
+        });
+        const savedDispatcher = await qr.manager.save(dispatcher);
+
+        const dispatcherWithCompany = await qr.manager.findOne(Dispatcher, {
+          where: { dispatcher_id: savedDispatcher.dispatcher_id },
+          relations: ['company'],
+        });
+
+        if (!dispatcherWithCompany) {
+          throw new Error('Failed to load dispatcher with company');
+        }
+
+        authResponse = this.generateDispatcherAuthToken(dispatcherWithCompany);
+      } else {
+        throw new BadRequestException('Invalid role');
+      }
+
+      invitation.status = InvitationStatus.ACCEPTED;
+      invitation.accepted_at = new Date();
+      await qr.manager.save(invitation);
+
+      return authResponse;
+    });
+  }
+
+  private async runInTransaction<T>(
+    fn: (qr: QueryRunner) => Promise<T>,
+  ): Promise<T> {
+    const qr = this.dataSource.createQueryRunner();
+    await qr.connect();
+    await qr.startTransaction();
+    try {
+      const result = await fn(qr);
+      await qr.commitTransaction();
+      return result;
+    } catch (e) {
+      await qr.rollbackTransaction();
+      throw e;
+    } finally {
+      await qr.release();
     }
-
-    invitation.status = InvitationStatus.ACCEPTED;
-    invitation.accepted_at = new Date();
-    await this.invitationRepository.save(invitation);
-
-    return authResponse;
   }
 
   @Cron(CronExpression.EVERY_HOUR)

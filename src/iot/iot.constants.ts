@@ -20,5 +20,5 @@ export const MQTT_CONFIG = {
   RECONNECT_PERIOD_MS: 5000,
   CONNECT_TIMEOUT_MS: 30000,
   QOS: 2,
-  CLIENT_ID: 'orionix-backend-main',
+  CLIENT_ID: `orionix-backend-${process.env.HOSTNAME ?? process.pid}`,
 } as const;

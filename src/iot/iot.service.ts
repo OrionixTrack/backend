@@ -288,7 +288,62 @@ export class IotService {
       await this.sensorDataRepository.save(sensorDataBatch);
     }
 
-    return this.saveTelemetry(tracker, sortedBatch[sortedBatch.length - 1]);
+    const lastTelemetry = sortedBatch[sortedBatch.length - 1];
+    const lastDatetime = new Date(lastTelemetry.datetime);
+    const lastTrip = findTripForTimestamp(lastDatetime);
+
+    if (lastTrip) {
+      return {
+        sensorData: sensorDataBatch[sensorDataBatch.length - 1],
+        tripId: lastTrip.trip_id,
+        companyId: lastTrip.company_id,
+      };
+    }
+
+    const vehicle = await this.vehicleRepository.findOne({
+      where: { vehicle_id: tracker.vehicle_id },
+      select: ['vehicle_id', 'company_id'],
+    });
+
+    if (!vehicle?.company_id) {
+      return null;
+    }
+
+    await this.vehicleRepository.update(tracker.vehicle_id, {
+      last_latitude: Number(lastTelemetry.latitude),
+      last_longitude: Number(lastTelemetry.longitude),
+      last_speed: lastTelemetry.speed ? Number(lastTelemetry.speed) : undefined,
+      last_bearing: lastTelemetry.bearing
+        ? Number(lastTelemetry.bearing)
+        : undefined,
+      last_temperature: lastTelemetry.temperature
+        ? Number(lastTelemetry.temperature)
+        : undefined,
+      last_humidity: lastTelemetry.humidity
+        ? Number(lastTelemetry.humidity)
+        : undefined,
+      last_update_time: lastDatetime,
+    });
+
+    return {
+      sensorData: {
+        latitude: Number(lastTelemetry.latitude),
+        longitude: Number(lastTelemetry.longitude),
+        speed: lastTelemetry.speed ? Number(lastTelemetry.speed) : undefined,
+        bearing: lastTelemetry.bearing
+          ? Number(lastTelemetry.bearing)
+          : undefined,
+        temperature: lastTelemetry.temperature
+          ? Number(lastTelemetry.temperature)
+          : undefined,
+        humidity: lastTelemetry.humidity
+          ? Number(lastTelemetry.humidity)
+          : undefined,
+        datetime: lastDatetime,
+      } as SensorData,
+      tripId: null,
+      companyId: vehicle.company_id,
+    };
   }
 
   async getChannelTokensByTripId(tripId: number): Promise<string[]> {

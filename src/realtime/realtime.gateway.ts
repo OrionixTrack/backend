@@ -4,11 +4,15 @@ import {
   SubscribeMessage,
   OnGatewayConnection,
   OnGatewayDisconnect,
+  OnGatewayInit,
   MessageBody,
   ConnectedSocket,
 } from '@nestjs/websockets';
 import { Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Server, Socket } from 'socket.io';
+import { createAdapter } from '@socket.io/redis-adapter';
+import Redis from 'ioredis';
 import { validate, ValidationError } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
 import { RealtimeService } from './realtime.service';
@@ -52,14 +56,27 @@ const INVALID_PAYLOAD = 'Invalid payload';
   namespace: '/tracking',
 })
 export class RealtimeGateway
-  implements OnGatewayConnection, OnGatewayDisconnect
+  implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
 {
   @WebSocketServer()
   server: Server;
 
   private readonly logger = new Logger(RealtimeGateway.name);
 
-  constructor(private readonly realtimeService: RealtimeService) {}
+  constructor(
+    private readonly realtimeService: RealtimeService,
+    private readonly configService: ConfigService,
+  ) {}
+
+  afterInit(server: Server): void {
+    const host = this.configService.get<string>('REDIS_HOST', 'redis');
+    const port = this.configService.get<number>('REDIS_PORT', 6379);
+    const url = `redis://${host}:${port}`;
+    const pubClient = new Redis(url);
+    const subClient = pubClient.duplicate();
+    server.adapter(createAdapter(pubClient, subClient));
+    this.logger.log('Socket.io Redis adapter attached');
+  }
 
   handleConnection(client: Socket) {
     this.logger.log(`Client connected: ${client.id}`);
